@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/mnsn/copilot-pulse/security/advisories/new
+    about: Please report security issues privately, not in a public issue.
+  - name: Problems with the GitHub Copilot app itself
+    url: https://support.github.com
+    about: Copilot Pulse is an independent project. For the Copilot app, contact GitHub Support.

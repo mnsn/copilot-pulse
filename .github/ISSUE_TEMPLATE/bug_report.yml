@@ -1,0 +1,52 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report!
+
+        **Please don't post private data.** Output from `--dump`, `--json` and `--watch`, the app's logs, and screenshots can include your session names, prompts and repository names. Remove anything you don't want to share publicly, or reproduce the problem with `make demo`.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you see, and what did you expect instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Start a session in the Copilot app and …
+        2. …
+  - type: input
+    id: pulse-version
+    attributes:
+      label: Copilot Pulse version or commit
+      placeholder: 0.1.0, or a commit like abc1234
+    validations:
+      required: true
+  - type: input
+    id: copilot-version
+    attributes:
+      label: GitHub Copilot app version
+    validations:
+      required: true
+  - type: input
+    id: macos-version
+    attributes:
+      label: macOS version
+      placeholder: macOS 15.6, Apple silicon
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Diagnostics (optional, with private details removed)
+      description: |
+        Relevant lines from:
+        `log show --last 10m --info --predicate 'subsystem == "com.asaf.CopilotPulse"' --style compact`
+      render: text

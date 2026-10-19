@@ -1,0 +1,17 @@
+# Swift Package Manager and Xcode
+.build/
+.swiftpm/
+DerivedData/
+*.xcodeproj
+xcuserdata/
+*.dSYM
+
+# Build output: the app bundle, demo data and screenshots
+build/
+# Default `--render` output. Renders of your own sessions show private session names.
+render/
+
+# Editors and macOS
+.vscode/
+.idea/
+.DS_Store
