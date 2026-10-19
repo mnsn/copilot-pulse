@@ -1,4 +1,4 @@
-.PHONY: build test app install uninstall run dump watch render icon demo-data demo demo-check screenshots clean
+.PHONY: build test app package install uninstall run dump watch render icon demo-data demo demo-check screenshots clean
 
 # With only the Command Line Tools installed, the compiler sometimes misses Swift Testing's macro
 # plugin (it lives in a subfolder), so point it there explicitly.
@@ -7,6 +7,8 @@ TESTING_PLUGINS := $(abspath $(dir $(shell xcrun --find swift))../lib/swift/host
 # Made-up Copilot data with sessions in every state (see scripts/make-demo-data.swift).
 DEMO_DIR := $(abspath build/demo)
 DEMO_ENV := COPILOT_PULSE_COPILOT_DIR="$(DEMO_DIR)"
+# The binary that demo-check runs: the debug build, unless scripts/check-app.sh passes a built app.
+PULSE := .build/debug/CopilotPulse
 SCREENSHOTS := menu-light menu-dark widget-large-light widget-large-dark
 
 build:
@@ -17,6 +19,10 @@ test:
 
 app:
 	./scripts/build-app.sh
+
+# The release zip: a universal app, checked and zipped, with its SHA-256 and notes in build/release.
+package:
+	./scripts/package.sh
 
 install:
 	./scripts/build-app.sh --install
@@ -45,8 +51,8 @@ demo: build demo-data
 	$(DEMO_ENV) .build/debug/CopilotPulse
 
 # Checks that the engine sorts the demo sessions into the expected groups. CI runs this.
-demo-check: build demo-data
-	@counts=$$($(DEMO_ENV) .build/debug/CopilotPulse --json | jq -cS .counts); \
+demo-check: $(if $(filter command line,$(origin PULSE)),,build) demo-data
+	@counts=$$($(DEMO_ENV) "$(PULSE)" --json | jq -cS .counts); \
 	expected='{"done":1,"idle":3,"needsYou":3,"running":2,"stopped":1}'; \
 	if [ "$$counts" = "$$expected" ]; then echo "demo-check passed: $$counts"; \
 	else echo "demo-check failed: expected $$expected, got $$counts" >&2; exit 1; fi

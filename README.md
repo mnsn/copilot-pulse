@@ -58,8 +58,25 @@ configure.
 
 ## Install
 
-Requirements: macOS 15 or later, and Swift 6 from Xcode or the Command Line Tools
-(`xcode-select --install`).
+Requires macOS 15 or later, on Apple silicon or Intel.
+
+1. Download [**Copilot-Pulse.zip**](https://github.com/mnsn/copilot-pulse/releases/latest/download/Copilot-Pulse.zip)
+   from the [latest release](https://github.com/mnsn/copilot-pulse/releases/latest) and unzip it.
+2. Drag **Copilot Pulse** to your Applications folder before you open it. Opened from Downloads,
+   macOS runs it from a temporary location, and Launch at Login may not work.
+3. Open it. The app isn't notarized by Apple, so the first time, macOS won't open it because it
+   can't verify it. Click **Done**, then go to **System Settings › Privacy & Security**, scroll
+   down to the message that Copilot Pulse was blocked, click **Open Anyway** and confirm.
+4. Turn on **Launch at Login** in its settings. If macOS asks you to allow it, use
+   **Allow in Login Items Settings…**.
+
+To update, replace the app with the new version and allow it again in the same way. To remove it,
+quit it and move it to the Trash.
+
+### Build from source
+
+You need Swift 6 from Xcode or the Command Line Tools (`xcode-select --install`). An app you
+build yourself opens without the Gatekeeper step.
 
 ```sh
 git clone https://github.com/mnsn/copilot-pulse.git
@@ -67,11 +84,7 @@ cd copilot-pulse
 make install     # builds "Copilot Pulse.app", copies it to ~/Applications and launches it
 ```
 
-Then turn on **Launch at Login** in its settings. If macOS asks you to allow it, use
-**Allow in Login Items Settings…**. To remove the app, run `make uninstall`.
-
-There's no prebuilt download: the app isn't notarized, so macOS would block a downloaded copy,
-while one you build yourself opens normally.
+Then turn on **Launch at Login** as above. To remove it, run `make uninstall`.
 
 ## Settings
 
@@ -112,12 +125,20 @@ Questions, plans, permission prompts and the current step come from the agent's 
 A session without a local log only shows Running, Interrupted or Idle, based on the Copilot app's
 own flags.
 
+### Why isn't it notarized?
+
+Notarization needs a paid Apple Developer Program membership, which this free project doesn't
+have. So macOS asks you to allow the app the first time you open it, as described in
+[Install](#install). Each release is built from its tagged source by
+[GitHub Actions](.github/workflows/release.yml), with an attestation you can
+[verify](SECURITY.md#verifying-a-download). You can also build it yourself.
+
 ### How do I troubleshoot it?
 
 The app binary has debugging options, and logs diagnostics to the system log:
 
 ```sh
-APP="$HOME/Applications/Copilot Pulse.app/Contents/MacOS/CopilotPulse"
+APP="/Applications/Copilot Pulse.app/Contents/MacOS/CopilotPulse"   # ~/Applications after make install
 "$APP" --dump     # every session and its status
 "$APP" --watch    # status changes as they happen
 log show --last 10m --info --predicate 'subsystem == "com.asaf.CopilotPulse"' --style compact
