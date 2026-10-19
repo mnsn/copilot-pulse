@@ -58,7 +58,7 @@ The app binary doubles as a command-line tool:
 .build/debug/CopilotPulse --dump            # table of every session and its status
 .build/debug/CopilotPulse --json            # the same as JSON, with counts
 .build/debug/CopilotPulse --watch           # print status changes live as they happen
-.build/debug/CopilotPulse --render <dir>    # draw the panel and each widget size (light and dark) to PNGs
+.build/debug/CopilotPulse --render <dir>    # draw the menu bar with the panel open, and each widget size, to PNGs (light and dark)
 ```
 
 `make dump`, `make watch` and `make render` run these from a debug build. Set

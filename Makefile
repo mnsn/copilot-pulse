@@ -9,7 +9,7 @@ DEMO_DIR := $(abspath build/demo)
 DEMO_ENV := COPILOT_PULSE_COPILOT_DIR="$(DEMO_DIR)"
 # The binary that demo-check runs: the debug build, unless scripts/check-app.sh passes a built app.
 PULSE := .build/debug/CopilotPulse
-SCREENSHOTS := menu-light menu-dark widget-large-light widget-large-dark
+SCREENSHOTS := menubar-light menubar-dark widget-large-light widget-large-dark
 
 build:
 	swift build

@@ -13,8 +13,8 @@ configure.
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/images/menu-dark.png">
-    <img src="docs/images/menu-light.png" width="380" align="top" alt="The menu-bar panel, listing sessions in the groups Needs You, Running, Finished and Stopped">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/images/menubar-dark.png">
+    <img src="docs/images/menubar-light.png" width="440" align="top" alt="The Copilot Pulse icon with its counts in the menu bar, and its panel open below, listing sessions in the groups Needs You, Running, Finished and Stopped">
   </picture>
   &nbsp;
   <picture>

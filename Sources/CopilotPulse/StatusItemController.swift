@@ -31,9 +31,6 @@ final class StatusItemController: NSObject {
             button.target = self
             button.action = #selector(togglePopover)
             button.sendAction(on: [.leftMouseUp, .rightMouseUp])
-            let glyph = NSImage(systemSymbolName: "waveform.path.ecg", accessibilityDescription: "Copilot Pulse")
-            glyph?.isTemplate = true
-            button.image = glyph
         }
         statusItem.autosaveName = "CopilotPulseStatusItem"
 
@@ -76,23 +73,37 @@ final class StatusItemController: NSObject {
 
     private func render(_ counts: PhaseCounts) {
         guard let button = statusItem.button else { return }
+        Self.configure(button, for: counts)
+        let spoken = Self.shownPhases.filter { counts[$0] > 0 }.map { "\(counts[$0]) \($0.title.lowercased())" }
+        button.toolTip = spoken.isEmpty ? "Copilot Pulse: all quiet" : "Copilot Pulse: " + spoken.joined(separator: ", ")
+        button.setAccessibilityLabel(button.toolTip)
+    }
+
+    /// Sets the glyph and the colored counts. `--render` sets up the button in the README's menu-bar picture
+    /// here too, so the picture can't drift from the real item.
+    static func configure(_ button: NSButton, for counts: PhaseCounts) {
+        let glyph = NSImage(systemSymbolName: "waveform.path.ecg", accessibilityDescription: "Copilot Pulse")
+        glyph?.isTemplate = true
+        button.image = glyph
+        let title = Self.title(for: counts)
+        button.attributedTitle = title
+        button.imagePosition = title.length == 0 ? .imageOnly : .imageLeading
+    }
+
+    /// The counts after the glyph: each non-zero group's symbol in its color, then the number.
+    private static func title(for counts: PhaseCounts) -> NSAttributedString {
         let font = NSFont.menuBarFont(ofSize: 0)
         let title = NSMutableAttributedString()
-        var spoken: [String] = []
-        for phase in Self.shownPhases where counts[phase] > 0 {
+        for phase in shownPhases where counts[phase] > 0 {
             title.append(NSAttributedString(string: " "))
-            title.append(Self.symbol(phase.symbol, color: phase.nsColor, font: font))
+            title.append(symbol(phase.symbol, color: phase.nsColor, font: font))
             title.append(NSAttributedString(
                 string: "\u{2009}\(counts[phase])",
                 attributes: [.font: NSFont.monospacedDigitSystemFont(ofSize: font.pointSize, weight: .medium),
                              .foregroundColor: NSColor.labelColor]
             ))
-            spoken.append("\(counts[phase]) \(phase.title.lowercased())")
         }
-        button.attributedTitle = title
-        button.imagePosition = title.length == 0 ? .imageOnly : .imageLeading
-        button.toolTip = spoken.isEmpty ? "Copilot Pulse: all quiet" : "Copilot Pulse: " + spoken.joined(separator: ", ")
-        button.setAccessibilityLabel(button.toolTip)
+        return title
     }
 
     private static func symbol(_ name: String, color: NSColor, font: NSFont) -> NSAttributedString {
