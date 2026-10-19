@@ -33,7 +33,21 @@ ditto -c -k --sequesterRsrc --keepParent "$APP" "$OUT/$ZIP"
 (cd "$OUT" && shasum -a 256 "$ZIP" > "$ZIP.sha256")
 SHA256="$(cut -d ' ' -f 1 "$OUT/$ZIP.sha256")"
 
-cat > "$OUT/notes.md" <<EOF
+# GitHub shows every line break in release notes, so join the lines that wrap a paragraph or a list
+# item.
+unwrap() {
+    awk '
+        function flush() { if (text != "") print text; text = "" }
+        /^[[:space:]]*```/ { flush(); fenced = !fenced; print; next }
+        fenced || /^[[:space:]]*$/ || /^[#|]/ { flush(); print; next }
+        ($0 " ") ~ /^[[:space:]]*([-*+>]|[0-9]+[.)])[[:space:]]/ { flush(); text = $0; next }
+        text != "" { sub(/^[[:space:]]+/, ""); text = text " " $0; next }
+        { text = $0 }
+        END { flush() }
+    '
+}
+
+unwrap > "$OUT/notes.md" <<EOF
 $CHANGES
 
 ## Install
