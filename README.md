@@ -24,8 +24,7 @@ configure.
 </p>
 
 > [!NOTE]
-> Copilot Pulse is an independent project. It isn't affiliated with or endorsed by GitHub.
-> The screenshots show made-up sessions from `make demo`.
+> Copilot Pulse is an independent project. It isn't affiliated with or endorsed by GitHub..
 
 ## Features
 
@@ -93,15 +92,6 @@ files under `~/.copilot` read-only and never changes any of the app's data. All 
 own settings and which sessions you've cleared, in its preferences on your Mac.
 
 ## FAQ
-
-### Why not a real macOS widget?
-
-macOS limits how often WidgetKit widgets refresh: a frequently viewed widget typically updates
-every 15 to 60 minutes ([Apple's documentation](https://developer.apple.com/documentation/widgetkit/keeping-a-widget-up-to-date)).
-Reloads requested by a background app and push updates are budgeted too, and widget hosts such
-as Pushcut or Scriptable are WidgetKit widgets with the same limit. So Copilot Pulse draws its
-own widget-style panel, which it can redraw instantly. The trade-offs: it isn't in the widget
-gallery, and the app has to be running.
 
 ### How does it update without polling?
 
