@@ -3,10 +3,11 @@ import Foundation
 /// Follows one session's append-only `events.jsonl`.
 ///
 /// The first load reads only the file's tail (growing it until a `user.message` anchor is found),
-/// later updates read just the appended bytes. A replaced or truncated file triggers a fresh load.
-/// Not thread-safe: confine each reader to a single queue.
+/// later updates read just the appended bytes. A replaced, truncated or rewritten file triggers a
+/// fresh load. Not thread-safe: confine each reader to a single queue.
 public final class EventLogReader {
     public static let defaultTailChunkSizes = [512 << 10, 4 << 20, 16 << 20]
+    private static let boundaryLength = 64
 
     public let url: URL
     public private(set) var state = SessionLogState()
@@ -16,6 +17,9 @@ public final class EventLogReader {
     private let maxIncrementalRead: UInt64
     private var offset: UInt64 = 0
     private var fileID: FileInfo.ID?
+    private var modified: Int64 = 0
+    /// The last bytes before `offset`. If they change, the file was rewritten rather than appended to.
+    private var boundary = Data()
     private var carry = Data()
 
     public init(
@@ -39,8 +43,8 @@ public final class EventLogReader {
 
         if !isLoaded || info.id != fileID || info.size < offset || info.size - offset > maxIncrementalRead {
             loadTail(info)
-        } else if info.size > offset {
-            readAppended(upTo: info.size)
+        } else if info.size > offset || info.modified != modified {
+            if !readAppended(info) { loadTail(info) }
         }
         return state != previousState || isLoaded != wasLoaded
     }
@@ -48,8 +52,10 @@ public final class EventLogReader {
     private func loadTail(_ info: FileInfo) {
         state = SessionLogState()
         carry = Data()
+        boundary = Data()
         offset = 0
         fileID = info.id
+        modified = info.modified
         isLoaded = true
         let size = info.size
         guard size > 0 else { return }
@@ -73,21 +79,32 @@ public final class EventLogReader {
                 state = fresh
                 carry = remainder
                 offset = readFrom + UInt64(data.count)
+                boundary = Data(data.suffix(Self.boundaryLength))
                 return
             }
         }
     }
 
-    private func readAppended(upTo size: UInt64) {
-        guard let data = read(from: offset, upTo: size), !data.isEmpty else { return }
-        offset += UInt64(data.count)
+    /// Reads what was appended since the last update. Returns false if the bytes before the old end
+    /// changed, which means the file was rewritten in place. A failed read changes nothing and is
+    /// retried on the next update.
+    private func readAppended(_ info: FileInfo) -> Bool {
+        let start = offset - UInt64(boundary.count)
+        guard let data = read(from: start, upTo: info.size) else { return true }
+        guard data.count >= boundary.count, data.prefix(boundary.count) == boundary else { return false }
+        modified = info.modified
+        guard data.count > boundary.count else { return true }
+
+        offset = start + UInt64(data.count)
         var buffer = carry
-        buffer.append(data)
+        buffer.append(data.dropFirst(boundary.count))
+        boundary = Data(data.suffix(Self.boundaryLength))
         var next = state
         carry = Self.forEachLine(in: buffer, skipFirstPartial: false) { line in
             if let event = EventLineParser.parse(line) { next.apply(event) }
         }
         state = next
+        return true
     }
 
     private func read(from start: UInt64, upTo end: UInt64) -> Data? {
@@ -134,6 +151,8 @@ struct FileInfo {
 
     var id: ID
     var size: UInt64
+    /// Modification time in nanoseconds since 1970.
+    var modified: Int64
 
     init?(path: String) {
         var info = stat()
@@ -150,5 +169,6 @@ struct FileInfo {
     private init(_ info: stat) {
         id = ID(device: Int64(info.st_dev), inode: UInt64(info.st_ino))
         size = UInt64(max(0, info.st_size))
+        modified = Int64(info.st_mtimespec.tv_sec) * 1_000_000_000 + Int64(info.st_mtimespec.tv_nsec)
     }
 }

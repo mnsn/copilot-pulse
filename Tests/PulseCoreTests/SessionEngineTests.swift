@@ -63,9 +63,42 @@ import Testing
             let snapshot = SessionEngine.loadOnce(paths: paths)
             let names = Dictionary(uniqueKeysWithValues: snapshot.records.map { ($0.id, $0.meta.name) })
             #expect(names == ["recent": "Fix the build", "unnamed-session": "Session unnamed-"])
-            #expect(snapshot.records.allSatisfy { $0.log?.phase == .running })
+            #expect(snapshot.records.allSatisfy { $0.log?.phase == .running && $0.meta.isRunning == nil })
             #expect(snapshot.problem?.contains("Could not open Copilot database") == true)
         }
+    }
+
+    @Test(.timeLimit(.minutes(1)))
+    func keepsTheLastListWhileTheDatabaseCannotBeRead() async throws {
+        let root = try makeTemporaryDirectory()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let paths = CopilotPaths(root: root)
+        let db = try TestDatabase(at: paths.database)
+        defer { db.close() }
+        try db.createAppSchema()
+        try db.addProject("p1", name: "Pulse")
+        try db.addSession("live", title: "Live", running: true, updatedAt: Date())
+        try db.addWorkspace("w-live", session: "live", name: "Live session")
+
+        let collector = SnapshotCollector()
+        let engine = SessionEngine(paths: paths, metadataThrottle: 0.05, safetyInterval: 3_600) { collector.add($0) }
+        engine.start()
+        defer { engine.stop() }
+        try await collector.wait("the initial load") { $0.records.first?.meta.isRunning == true }
+
+        // Neither the main nor the fallback query can read this.
+        try db.exec("ALTER TABLE sessions RENAME TO renamed_sessions;")
+        engine.refresh()
+        let stale = try await collector.wait("the failed reload") { $0.problem != nil }
+        #expect(stale.records.map(\.meta.name) == ["Live session"])
+        // The last known running flag may be out of date by now.
+        #expect(stale.records.first?.meta.isRunning == nil)
+        #expect(stale.problem?.hasSuffix("The list may be out of date.") == true)
+
+        try db.exec("ALTER TABLE renamed_sessions RENAME TO sessions;")
+        engine.refresh()
+        let recovered = try await collector.wait("the recovered reload") { $0.problem == nil }
+        #expect(recovered.records.first?.meta.isRunning == true)
     }
 
     /// The point of the whole design: changes are pushed by FSEvents, nothing polls.

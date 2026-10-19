@@ -126,10 +126,31 @@ import Testing
 
             let snapshot = try AppDatabase.load(at: url)
             #expect(snapshot.sessions == [
-                SessionMeta(id: "b", name: "", sessionType: "general_chat", updatedAt: t(2)),
-                SessionMeta(id: "a", name: "Alpha", sessionType: "project", updatedAt: t(1)),
+                SessionMeta(id: "b", name: "", sessionType: "general_chat", isRunning: nil, updatedAt: t(2)),
+                SessionMeta(id: "a", name: "Alpha", sessionType: "project", isRunning: nil, updatedAt: t(1)),
             ])
             #expect(snapshot.view == AppViewState())
+        }
+    }
+
+    /// Standard SQLite builds remove the write-ahead log when the app closes the database, and a
+    /// read-only connection can't recreate it.
+    @Test func readsTheDatabaseWhileTheAppIsClosed() throws {
+        try withTemporaryDirectory { directory in
+            let folder = directory.appendingPathComponent("Copilot data", isDirectory: true)
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            let url = folder.appendingPathComponent("data.db")
+            let db = try TestDatabase(at: url, journalMode: "WAL")
+            try db.createAppSchema()
+            try db.addSession(Self.chatId, title: "Saved", type: "general_chat")
+            db.close()
+            // macOS's SQLite keeps an empty log and the index instead; remove them as other builds do.
+            for suffix in ["-wal", "-shm"] where FileManager.default.fileExists(atPath: url.path + suffix) {
+                try FileManager.default.removeItem(atPath: url.path + suffix)
+            }
+
+            #expect(try AppDatabase.load(at: url).sessions.map(\.id) == [Self.chatId])
+            #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path) == ["data.db"])
         }
     }
 

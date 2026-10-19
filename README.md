@@ -48,7 +48,7 @@ configure.
 | **Running** | Working | A turn is in progress (the current step is shown) |
 | | Starting… | The app started a turn and the agent hasn't logged anything yet |
 | **Done** | Finished | The turn ended normally; shows the agent's summary if there is one |
-| **Stopped** | Interrupted | You cancelled the turn |
+| **Stopped** | Interrupted | You cancelled the turn, or it was cut short (for example, the app quit mid-turn) |
 | | Error | The session failed (the error is shown) |
 | | Stopped responding | The log says "mid-turn", the app no longer marks it running, and it has been silent for 90 s |
 | **Idle** | Idle | Everything else |
@@ -89,8 +89,8 @@ Open the gear menu in the menu-bar panel, or right-click the widget.
 ## Privacy
 
 Copilot Pulse makes no network connections and collects no data. It reads the Copilot app's
-files under `~/.copilot` read-only and never changes them. All it stores is its own settings and
-which sessions you've cleared, in its preferences on your Mac.
+files under `~/.copilot` read-only and never changes any of the app's data. All it stores is its
+own settings and which sessions you've cleared, in its preferences on your Mac.
 
 ## FAQ
 

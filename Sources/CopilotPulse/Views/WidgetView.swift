@@ -71,6 +71,12 @@ struct WidgetView: View {
                 .foregroundStyle(store.counts.needsYou > 0 ? Color.orange : Color.accentColor)
             Text("Copilot")
                 .font(.system(size: 13, weight: .semibold))
+            if let problem = store.problem {
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .help(problem)
+            }
             Spacer()
             if store.hasLoaded && store.counts.active == 0 {
                 Text("All quiet")

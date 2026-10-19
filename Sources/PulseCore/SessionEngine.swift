@@ -212,8 +212,14 @@ public final class SessionEngine: @unchecked Sendable {
             metadataFromDatabase = true
             problem = nil
         } catch {
-            // Keep the last good list; only fall back to a directory scan if we never had one.
-            if !metadataFromDatabase {
+            if metadataFromDatabase {
+                // Keep the last good list, but its running flags may be out of date, so the
+                // logs decide until the database can be read again.
+                for index in metas.indices {
+                    metas[index].isRunning = nil
+                }
+                problem = "\(error). The list may be out of date."
+            } else {
                 metas = SessionStateScanner.recentSessions(paths: paths)
                 problem = FileManager.default.fileExists(atPath: paths.root.path)
                     ? String(describing: error)

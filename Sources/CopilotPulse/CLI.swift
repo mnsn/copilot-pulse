@@ -86,17 +86,25 @@ enum CLI {
     }
 
     private static func watch() -> Never {
+        let queue = DispatchQueue(label: "CopilotPulse.watch")
         let printer = WatchPrinter()
-        let engine = SessionEngine { state in printer.print(state) }
+        let engine = SessionEngine { state in queue.async { printer.print(state) } }
+        // Statuses also change with time alone, e.g. "done" turns "idle" after an hour.
+        let timer = DispatchSource.makeTimerSource(queue: queue)
+        timer.schedule(deadline: .now() + 5, repeating: 5, leeway: .seconds(1))
+        timer.setEventHandler { printer.refresh() }
+        timer.resume()
         engine.start()
         setvbuf(stdout, nil, _IOLBF, 0)
         print("Watching \(engine.paths.root.path) — Ctrl-C to stop")
-        dispatchMain()
+        withExtendedLifetime((engine, timer)) { dispatchMain() }
     }
 }
 
-/// Prints only the sessions whose displayed status changed. Called on the engine's queue.
+/// Prints only the sessions whose displayed status changed. Confined to the watch queue.
 private final class WatchPrinter: @unchecked Sendable {
+    private var latest: EngineSnapshot?
+    private var problem: String?
     private var previous: [String: SessionSnapshot] = [:]
     private let formatter: DateFormatter = {
         let formatter = DateFormatter()
@@ -105,7 +113,21 @@ private final class WatchPrinter: @unchecked Sendable {
     }()
 
     func print(_ state: EngineSnapshot) {
+        latest = state
+        report(state)
+    }
+
+    /// Resolves the latest state again at the current time.
+    func refresh() {
+        if let latest { report(latest) }
+    }
+
+    private func report(_ state: EngineSnapshot) {
         let now = Date()
+        if state.problem != problem {
+            problem = state.problem
+            if let problem { Swift.print("\(formatter.string(from: now))  ! \(problem)") }
+        }
         for session in CLI.resolve(state, now: now) {
             let old = previous[session.id]
             previous[session.id] = session

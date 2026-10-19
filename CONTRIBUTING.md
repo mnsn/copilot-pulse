@@ -79,8 +79,10 @@ log show --last 10m --info --predicate 'subsystem == "com.asaf.CopilotPulse"' --
 
 ## Ground rules
 
-- **Read-only.** Copilot Pulse must never write to, lock or otherwise change the Copilot app's
-  files. Open everything read-only.
+- **Never change the Copilot app's data.** Open its files read-only, keep database reads short
+  and never run SQL that writes (including `PRAGMA` settings and checkpoints). A read-only SQLite
+  connection still takes brief shared locks and updates `data.db-shm`, as every reader does;
+  that's expected.
 - **No network.** The app makes no network connections and collects no data. Keep it that way.
 - **Logic goes in `PulseCore`.** Keep it free of UI code and cover changes with tests in
   `Tests/PulseCoreTests`. The app target only displays what the engine publishes.

@@ -13,8 +13,14 @@ Copilot Pulse combines the two. The database says which sessions exist and wheth
 thinks they're running. The tail of each log says exactly where a session is, for example
 "asked a question at 14:02 and is still waiting".
 
-Both are opened **read-only**. The database uses SQLite's read-only mode, and for the logs only
-newly appended bytes are read.
+Copilot Pulse never changes either of them:
+
+- The logs are opened read-only. After the first read, only what's been appended is read.
+- The database is opened with a read-only SQLite connection. Like any SQLite reader, it briefly
+  takes shared locks and updates SQLite's shared-memory index (`data.db-shm`) while it reads;
+  neither changes any data. When the app has quit and SQLite has removed the write-ahead log, a
+  read-only connection can't open the database, so Copilot Pulse reads it in SQLite's
+  [immutable mode](https://www.sqlite.org/uri.html#uriimmutable) instead.
 
 ## How a status is decided
 

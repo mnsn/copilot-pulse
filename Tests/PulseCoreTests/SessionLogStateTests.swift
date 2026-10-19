@@ -137,6 +137,41 @@ import Testing
         #expect(afterFinishing.activity == .finished(at: t(3), summary: nil))
     }
 
+    @Test func aColdResumeEndsWhatTheLastProcessLeftRunning() {
+        // The CLI quit without a shutdown event while asking; a new one resumed the session.
+        let crashed = [
+            Line.userMessage(at: t(1)),
+            Line.assistantMessage(toolCalls: ["q"], at: t(2)),
+            Line.toolStart("ask_user", id: "q", arguments: ["question": "Ship it?"], at: t(3)),
+            Line.resume(at: t(60)),
+        ]
+        let resumed = logState(crashed)
+        #expect(resumed.activity == .interrupted(at: t(3)))
+        #expect(resumed.pendingTools.isEmpty)
+        #expect(!resumed.lastMainMessageHadTools)
+        #expect(logState(crashed + [Line.userMessage(at: t(61))]).activity == .working(since: t(61), detail: nil))
+
+        // After a shutdown there is nothing left to end.
+        let finished = logState([
+            Line.userMessage(at: t(1)), Line.assistantMessage(at: t(2)), Line.turnEnd(at: t(3)),
+            Line.shutdown(at: t(4)), Line.resume(at: t(60)),
+        ])
+        #expect(finished.activity == .finished(at: t(3), summary: nil))
+    }
+
+    @Test func aResumeThatKeepsThePendingWorkChangesNothing() {
+        let asking = [
+            Line.userMessage(at: t(1)),
+            Line.toolStart("ask_user", id: "q", arguments: ["question": "Ship it?"], at: t(2)),
+        ]
+        let waiting = logState(asking)
+        for resume in [Line.resume(keepingPendingWork: true, at: t(60)), Line.resume(joiningLiveWork: true, at: t(60))] {
+            let state = logState(asking + [resume])
+            #expect(state.activity == waiting.activity)
+            #expect(state.pendingTools == waiting.pendingTools)
+        }
+    }
+
     @Test func taskCompleteFinishesWithASummary() {
         let lines = [
             Line.userMessage(at: t(1)),

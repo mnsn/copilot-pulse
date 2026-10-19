@@ -3,7 +3,7 @@ import Testing
 @testable import PulseCore
 
 private func meta(
-    name: String = "Fix login", type: String = "project", running: Bool = false, interrupted: Bool = false,
+    name: String = "Fix login", type: String = "project", running: Bool? = false, interrupted: Bool = false,
     updatedAt: Date? = t(0), workspaceId: String? = "w1", activity: ActivityPreview? = nil
 ) -> SessionMeta {
     SessionMeta(
@@ -139,6 +139,22 @@ private let finishedTurn = [Line.userMessage(at: t(1)), Line.assistantMessage(at
         verify(resolve(lines, meta(), now: t(3_604)), .idle, .unresponsive, since: t(3))
         // While the app still says it's running, silence alone means nothing.
         verify(resolve(lines, meta(running: true), now: t(10_000)), .running, .working, since: t(1))
+    }
+
+    /// The fallback query and the folder scan can't tell whether the app is running a session.
+    @Test func anUnknownRunningFlagLeavesItToTheLog() {
+        let asking = [
+            Line.userMessage(at: t(1)),
+            Line.toolStart("ask_user", id: "q", arguments: ["question": "Ship it?"], at: t(2)),
+        ]
+        // A question can wait for hours; only a flag known to be off means the CLI is gone.
+        verify(resolve(asking, meta(running: nil), now: t(10_000)), .needsYou, .question, since: t(2), detail: "Ship it?")
+        verify(resolve(asking, meta(running: false), now: t(10_000)), .idle, .unresponsive, since: t(2))
+        let working = [Line.userMessage(at: t(1)), Line.toolStart("bash", id: "c1", at: t(2))]
+        verify(resolve(working, meta(running: nil), now: t(10_000)), .running, .working, since: t(1))
+        // Nor does it start a new turn or stand in for a missing log.
+        verify(resolve(finishedTurn, meta(running: nil, updatedAt: t(10)), now: t(20)), .done, .finished, since: t(3))
+        verify(resolve(nil, meta(running: nil, updatedAt: t(5)), now: t(10)), .idle, .idle, since: t(5))
     }
 
     @Test func aNewTurnTheLogHasNotCaughtUpWithIsStarting() {

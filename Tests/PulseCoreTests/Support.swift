@@ -119,6 +119,16 @@ enum Line {
         event("session.shutdown", data: ["shutdownType": "routine"], at: date)
     }
 
+    /// A cold resume by default. Otherwise it keeps the previous process's pending work waiting,
+    /// or joins a turn another client is running.
+    static func resume(keepingPendingWork: Bool = false, joiningLiveWork: Bool = false, at date: Date) -> String {
+        var data: [String: Any] = [
+            "resumeTime": iso(date), "eventCount": 12, "alreadyInUse": joiningLiveWork, "sessionWasActive": joiningLiveWork,
+        ]
+        if keepingPendingWork { data["continuePendingWork"] = true }
+        return event("session.resume", data: data, at: date)
+    }
+
     /// An irrelevant event of roughly `bytes` length, standing in for big tool output or images.
     static func filler(bytes: Int, at date: Date) -> String {
         event("session.binary_asset", data: ["data": String(repeating: "A", count: max(0, bytes - 160))], at: date)

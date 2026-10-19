@@ -55,6 +55,7 @@ public struct SessionLogState: Sendable, Equatable {
     }
 
     public mutating func apply(_ event: LogEvent) {
+        let previousEventAt = lastEventAt
         if let timestamp = event.timestamp, timestamp > (lastEventAt ?? .distantPast) {
             lastEventAt = timestamp
         }
@@ -139,7 +140,17 @@ public struct SessionLogState: Sendable, Equatable {
             self.summary = summary
             if phase == .running || phase == .unknown { finish(at: at) }
 
-        case .sessionStart, .sessionResume, .other:
+        case .sessionResume:
+            // A new CLI process dropped what the previous one left pending. Without a shutdown
+            // event, that process stopped mid-turn, the last time it wrote something.
+            clearPending()
+            lastMainMessageHadTools = false
+            currentStep = nil
+            if phase == .running {
+                enter(.interrupted, at: previousEventAt ?? at)
+            }
+
+        case .sessionStart, .other:
             break
         }
     }

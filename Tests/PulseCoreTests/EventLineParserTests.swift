@@ -103,6 +103,10 @@ import Testing
         #expect(parse(Line.shutdown(at: t(4))) == LogEvent(timestamp: t(4), kind: .sessionShutdown))
         #expect(parse(Line.sessionStart(at: t(5)))?.kind == .sessionStart)
         #expect(parse(Line.event("session.resume", data: ["resumeTime": iso(t(6))], at: t(6)))?.kind == .sessionResume)
+        #expect(parse(Line.resume(at: t(6))) == LogEvent(timestamp: t(6), kind: .sessionResume))
+        // Resumes that keep the previous process's pending work going don't end anything.
+        #expect(parse(Line.resume(keepingPendingWork: true, at: t(7))) == LogEvent(timestamp: t(7), kind: .other))
+        #expect(parse(Line.resume(joiningLiveWork: true, at: t(8))) == LogEvent(timestamp: t(8), kind: .other))
     }
 
     @Test func irrelevantAndMalformedLines() {
@@ -121,5 +125,25 @@ import Testing
 
         let escapedType = #"{"type":"user\u002emessage","data":{"content":"hi"},"id":"x","timestamp":"\#(iso(t(3)))","parentId":null}"#
         #expect(parse(escapedType) == LogEvent(timestamp: t(3), kind: .userMessage))
+    }
+
+    /// The shortcuts that skip decoding must not misread lines in an unexpected shape.
+    @Test func shortcutsOnlyTrustTheUsualKeyOrder() {
+        let earlyAgentId = #"{"type":"user.message","agentId":"sub-agent","data":{"content":"Explore"},"id":"x","timestamp":"\#(iso(t(1)))","parentId":null}"#
+        #expect(parse(earlyAgentId) == LogEvent(timestamp: t(1), kind: .other))
+        // An agentId inside the data is not a subagent's.
+        let attachment = Line.event("user.message", data: ["content": "Hi", "attachments": [["agentId": "a1"]]], at: t(2))
+        #expect(parse(attachment) == LogEvent(timestamp: t(2), kind: .userMessage))
+
+        let spacedHook = Line.event("hook.start", rawData: #"{"hookInvocationId":"h","hookType": "agentStop"}"#, at: t(3))
+        #expect(parse(spacedHook) == LogEvent(timestamp: t(3), kind: .agentStop(isSubagent: false)))
+
+        // With the event's own timestamp first, the last one in the line is nested.
+        let nested = #"{"type":"session.shutdown","timestamp":"\#(iso(t(4)))","data":{"usage":{"timestamp":"\#(iso(t(99)))"}},"id":"x","parentId":null}"#
+        #expect(parse(nested) == LogEvent(timestamp: t(4), kind: .sessionShutdown))
+        let inArray = #"{"type":"session.info","timestamp":"\#(iso(t(5)))","data":{"items":[{"timestamp":"\#(iso(t(99)))"}]}}"#
+        #expect(parse(inArray) == LogEvent(timestamp: t(5), kind: .other))
+        let braceInString = #"{"type":"session.info","data":{},"id":"x","timestamp":"\#(iso(t(6)))","parentId":"a}b"}"#
+        #expect(parse(braceInString) == LogEvent(timestamp: t(6), kind: .other))
     }
 }

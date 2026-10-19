@@ -19,11 +19,27 @@ func fail(_ message: String) -> Never {
     exit(1)
 }
 
-// The directory is replaced, so refuse to touch one this script didn't create (like ~/.copilot).
-if let contents = try? fileManager.contentsOfDirectory(atPath: root.path), !contents.isEmpty, !contents.contains(marker) {
-    fail("\(root.path) exists and wasn't created by this script, so it won't be replaced")
+// The directory is replaced, so refuse to touch anything this script didn't create (like ~/.copilot).
+var isDirectory: ObjCBool = false
+if fileManager.fileExists(atPath: root.path, isDirectory: &isDirectory) {
+    guard isDirectory.boolValue else {
+        fail("\(root.path) exists and isn't a directory, so it won't be replaced")
+    }
+    let contents: [String]
+    do {
+        contents = try fileManager.contentsOfDirectory(atPath: root.path)
+    } catch {
+        fail("couldn't check what's in \(root.path): \(error.localizedDescription)")
+    }
+    guard contents.isEmpty || contents.contains(marker) else {
+        fail("\(root.path) exists and wasn't created by this script, so it won't be replaced")
+    }
+    do {
+        try fileManager.removeItem(at: root)
+    } catch {
+        fail("couldn't remove the old demo data in \(root.path): \(error.localizedDescription)")
+    }
 }
-try? fileManager.removeItem(at: root)
 try fileManager.createDirectory(at: root.appending(path: "session-state"), withIntermediateDirectories: true)
 try Data().write(to: root.appending(path: marker))
 

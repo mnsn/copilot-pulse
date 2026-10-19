@@ -22,6 +22,7 @@ public enum SessionStateScanner {
                 id: id,
                 name: workspaceName(in: directory) ?? "Session \(id.prefix(8))",
                 sessionType: "unknown",
+                isRunning: nil,
                 updatedAt: modified
             )
         }

@@ -11,10 +11,10 @@ project maintained in spare time, so a reply may take a few days.
 
 ## Scope
 
-Copilot Pulse reads the GitHub Copilot app's files under `~/.copilot` (read-only) and makes no
-network connections. Worth reporting:
+Copilot Pulse only reads the GitHub Copilot app's files under `~/.copilot` and makes no network
+connections. Worth reporting:
 
-- any way it could change, lock or corrupt the Copilot app's data,
+- any way it could change or corrupt the Copilot app's data, or keep the app from saving it,
 - any way it could expose session contents outside your Mac, and
 - problems with how the build scripts here create or sign the app.
 

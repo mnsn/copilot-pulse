@@ -24,6 +24,8 @@ public struct LogEvent: Sendable, Equatable {
         case abort(reason: String?)
         case sessionError(errorType: String?, message: String?)
         case sessionStart
+        /// A resume that abandoned what the previous CLI process left pending. A resume that keeps
+        /// that work waiting, or joins a turn another client is running, is `.other`.
         case sessionResume
         case sessionShutdown
         case taskComplete(summary: String?, success: Bool?)

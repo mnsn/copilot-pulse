@@ -7,15 +7,16 @@ import Foundation
 public enum EventLineParser {
     private static let typePrefix = Array(#"{"type":""#.utf8)
     private static let timestampKey = Array(#""timestamp":""#.utf8)
-    private static let agentStopNeedle = Array(#""hookType":"agentStop""#.utf8)
-    private static let topLevelAgentIdKey = Array(#"},"agentId":""#.utf8)
+    private static let agentIdKey = Array(#""agentId""#.utf8)
+    private static let agentStopNeedle = Array("agentStop".utf8)
     private static let toolCompletePrefix = Array(#"{"type":"tool.execution_complete","data":{"toolCallId":""#.utf8)
+    /// Generous room for the top-level members after the timestamp (`,"parentId":"…"}`).
+    private static let maxTimestampSuffix = 512
 
     /// Types whose payload we don't need; the type and the trailing timestamp suffice.
     private static let headerOnlyTypes: [String: LogEvent.Kind] = [
         "user.message": .userMessage,
         "session.start": .sessionStart,
-        "session.resume": .sessionResume,
         "session.shutdown": .sessionShutdown,
     ]
 
@@ -23,7 +24,7 @@ public enum EventLineParser {
         "assistant.turn_start", "assistant.turn_end", "assistant.message",
         "tool.execution_start", "tool.execution_complete",
         "permission.requested", "permission.completed",
-        "hook.start", "abort", "session.error", "session.task_complete",
+        "hook.start", "abort", "session.error", "session.resume", "session.task_complete",
     ]
 
     public static func parse(_ line: String) -> LogEvent? {
@@ -35,16 +36,17 @@ public enum EventLineParser {
         let line = trimmed(raw)
         guard line.count >= 2 else { return nil }
 
-        if let type = fastType(line) {
+        // The shortcuts rely on the CLI's key order; a line that doesn't follow it is decoded in full.
+        if let type = fastType(line), let timestamp = tailTimestamp(line) {
             if let kind = headerOnlyTypes[type] {
-                let isSubagentMessage = kind == .userMessage && hasTopLevelAgentId(line)
-                return LogEvent(timestamp: tailTimestamp(line), kind: isSubagentMessage ? .other : kind)
-            }
-            if type == "tool.execution_complete", let callId = fastToolCompleteId(line) {
-                return LogEvent(timestamp: tailTimestamp(line), kind: .toolComplete(callId: callId))
-            }
-            if !decodedTypes.contains(type) || (type == "hook.start" && !contains(line, agentStopNeedle)) {
-                return LogEvent(timestamp: tailTimestamp(line), kind: .other)
+                // Prompts the main agent sends to subagents carry a top-level agentId.
+                if kind != .userMessage || !contains(line, agentIdKey) {
+                    return LogEvent(timestamp: timestamp, kind: kind)
+                }
+            } else if type == "tool.execution_complete", let callId = fastToolCompleteId(line) {
+                return LogEvent(timestamp: timestamp, kind: .toolComplete(callId: callId))
+            } else if !decodedTypes.contains(type) || (type == "hook.start" && !contains(line, agentStopNeedle)) {
+                return LogEvent(timestamp: timestamp, kind: .other)
             }
         }
 
@@ -108,7 +110,10 @@ public enum EventLineParser {
         case "session.start":
             kind = .sessionStart
         case "session.resume":
-            kind = .sessionResume
+            // Unless the resume keeps them waiting or joins live work, the CLI marks the previous
+            // process's pending tool calls and permission requests as interrupted.
+            let keepsWork = data["continuePendingWork"] as? Bool == true || data["sessionWasActive"] as? Bool == true
+            kind = keepsWork ? .other : .sessionResume
         case "session.shutdown":
             kind = .sessionShutdown
         case "session.task_complete":
@@ -188,28 +193,48 @@ public enum EventLineParser {
     }
 
     /// Top-level keys are ordered `type, data, [agentId], id, timestamp, parentId`, so the last
-    /// `"timestamp":"` occurrence is the event's own timestamp, not one nested inside `data`.
+    /// `"timestamp":"` is normally the event's own. It only counts when no more than flat top-level
+    /// members follow it; otherwise it is nested in `data` and the line needs a full decode.
     static func tailTimestamp(_ line: UnsafeRawBufferPointer) -> Date? {
         guard let keyStart = lastIndex(of: timestampKey, in: line) else { return nil }
         let valueStart = keyStart + timestampKey.count
         var end = valueStart
         while end < line.count, line[end] != 0x22 { end += 1 }
-        guard end < line.count, end > valueStart else { return nil }
+        guard end < line.count, end > valueStart, endsFlatObject(line, from: end + 1) else { return nil }
         return Timestamp.parse(UnsafeRawBufferPointer(rebasing: line[valueStart..<end]))
     }
 
-    private static func hasTopLevelAgentId(_ line: UnsafeRawBufferPointer) -> Bool {
-        guard let timestampStart = lastIndex(of: timestampKey, in: line) else { return false }
-        return lastIndex(of: topLevelAgentIdKey, in: line, before: timestampStart,
-                         notBefore: max(0, timestampStart - 200)) != nil
+    /// Whether `line[start...]` closes the top-level object: no nested objects or arrays, and the
+    /// only closing brace outside strings is the line's last byte.
+    private static func endsFlatObject(_ line: UnsafeRawBufferPointer, from start: Int) -> Bool {
+        guard line.count - start <= maxTimestampSuffix else { return false }
+        var index = start
+        var inString = false
+        while index < line.count {
+            let byte = line[index]
+            if inString {
+                if byte == 0x5C {
+                    index += 1
+                } else if byte == 0x22 {
+                    inString = false
+                }
+            } else {
+                switch byte {
+                case 0x22: inString = true
+                case 0x7B, 0x5B, 0x5D: return false
+                case 0x7D: return index == line.count - 1
+                default: break
+                }
+            }
+            index += 1
+        }
+        return false
     }
 
-    private static func lastIndex(
-        of needle: [UInt8], in haystack: UnsafeRawBufferPointer, before upperBound: Int? = nil, notBefore lowerBound: Int = 0
-    ) -> Int? {
+    private static func lastIndex(of needle: [UInt8], in haystack: UnsafeRawBufferPointer) -> Int? {
         let needleCount = needle.count
-        var index = (upperBound ?? haystack.count) - needleCount
-        while index >= lowerBound {
+        var index = haystack.count - needleCount
+        while index >= 0 {
             if haystack[index] == needle[0] {
                 var matches = true
                 for offset in 1..<needleCount where haystack[index + offset] != needle[offset] {

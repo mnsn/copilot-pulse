@@ -6,7 +6,7 @@ TESTING_PLUGINS := $(abspath $(dir $(shell xcrun --find swift))../lib/swift/host
 
 # Made-up Copilot data with sessions in every state (see scripts/make-demo-data.swift).
 DEMO_DIR := $(abspath build/demo)
-DEMO_ENV := COPILOT_PULSE_COPILOT_DIR=$(DEMO_DIR)
+DEMO_ENV := COPILOT_PULSE_COPILOT_DIR="$(DEMO_DIR)"
 SCREENSHOTS := menu-light menu-dark widget-large-light widget-large-dark
 
 build:
@@ -38,7 +38,7 @@ render: build
 	.build/debug/CopilotPulse --render build/render
 
 demo-data:
-	swift scripts/make-demo-data.swift $(DEMO_DIR)
+	swift scripts/make-demo-data.swift "$(DEMO_DIR)"
 
 # Runs the app with the demo data instead of your own sessions. Ctrl-C quits.
 demo: build demo-data

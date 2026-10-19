@@ -9,7 +9,8 @@ public struct SessionMeta: Sendable, Equatable, Codable {
     public var sessionType: String
     public var mode: String?
     /// The app's own "a turn is in progress" flag (also true while waiting on `ask_user`).
-    public var isRunning: Bool
+    /// Nil when unknown: the fallback query and the folder scan can't read it.
+    public var isRunning: Bool?
     public var wasInterrupted: Bool
     public var interruptionReason: String?
     public var createdAt: Date?
@@ -24,7 +25,7 @@ public struct SessionMeta: Sendable, Equatable, Codable {
 
     public init(
         id: String, name: String, sessionType: String = "project", mode: String? = nil,
-        isRunning: Bool = false, wasInterrupted: Bool = false, interruptionReason: String? = nil,
+        isRunning: Bool? = false, wasInterrupted: Bool = false, interruptionReason: String? = nil,
         createdAt: Date? = nil, updatedAt: Date? = nil, projectName: String? = nil,
         branch: String? = nil, creatorSessionId: String? = nil, workspaceId: String? = nil,
         lastActivity: ActivityPreview? = nil
@@ -49,13 +50,20 @@ public struct SessionMeta: Sendable, Equatable, Codable {
 }
 
 public enum AppDatabaseError: Error, CustomStringConvertible {
-    case open(String)
-    case query(String)
+    case open(String, code: Int32)
+    case query(String, code: Int32)
 
     public var description: String {
         switch self {
-        case .open(let message): return "Could not open Copilot database: \(message)"
-        case .query(let message): return "Copilot database query failed: \(message)"
+        case .open(let message, _): return "Could not open Copilot database: \(message)"
+        case .query(let message, _): return "Copilot database query failed: \(message)"
+        }
+    }
+
+    /// SQLite's primary result code.
+    var code: Int32 {
+        switch self {
+        case .open(_, let code), .query(_, let code): return code & 0xFF
         }
     }
 }
@@ -140,7 +148,25 @@ public enum AppDatabase {
 
     /// Sessions plus the app's view state. Only the session list is required; the rest is best effort.
     public static func load(at url: URL) throws -> DatabaseSnapshot {
-        let connection = try Connection(readOnly: url)
+        do {
+            return try load(from: Connection(readOnly: url))
+        } catch let error as AppDatabaseError where error.code == SQLITE_CANTOPEN && isClosedWALDatabase(url) {
+            // A read-only connection can't recreate the write-ahead log, which SQLite removes when
+            // the app closes the database. Without a log or journal, the file holds every committed
+            // change, and the app only writes to it again through a new log, so read it as it is.
+            guard let snapshot = try? load(from: Connection(readOnly: url, immutable: true)) else { throw error }
+            return snapshot
+        }
+    }
+
+    private static func isClosedWALDatabase(_ url: URL) -> Bool {
+        let fileManager = FileManager.default
+        return fileManager.fileExists(atPath: url.path)
+            && !fileManager.fileExists(atPath: url.path + "-wal")
+            && !fileManager.fileExists(atPath: url.path + "-journal")
+    }
+
+    private static func load(from connection: Connection) throws -> DatabaseSnapshot {
         var sessions = try loadSessions(connection)
 
         if let latest = try? connection.rows(latestActivityQuery, { row in
@@ -196,6 +222,7 @@ public enum AppDatabase {
                     id: row.text(0) ?? "",
                     name: row.text(1) ?? "",
                     sessionType: row.text(2) ?? "",
+                    isRunning: nil,
                     updatedAt: row.date(3)
                 )
             }.filter { !$0.id.isEmpty }
@@ -224,17 +251,27 @@ public enum AppDatabase {
     }
 }
 
-/// Short-lived, read-only SQLite connection. Never writes; safe alongside the app's WAL writer.
+/// Short-lived, read-only SQLite connection. It never changes the database's contents. Like any
+/// reader alongside the app's WAL writer, it takes brief shared locks and updates SQLite's
+/// shared-memory index (`-shm`).
 final class Connection {
     private let handle: OpaquePointer
 
-    init(readOnly url: URL) throws {
+    /// `immutable` reads the file without any locks or `-wal`/`-shm` files. Only use it while
+    /// nothing can write to the file.
+    init(readOnly url: URL, immutable: Bool = false) throws {
         var db: OpaquePointer?
-        let status = sqlite3_open_v2(url.path, &db, SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX, nil)
+        var flags = SQLITE_OPEN_READONLY | SQLITE_OPEN_NOMUTEX
+        var filename = url.path
+        if immutable {
+            flags |= SQLITE_OPEN_URI
+            filename = url.standardizedFileURL.absoluteString + "?immutable=1"
+        }
+        let status = sqlite3_open_v2(filename, &db, flags, nil)
         guard status == SQLITE_OK, let db else {
             let message = db.map { String(cString: sqlite3_errmsg($0)) } ?? "SQLite status \(status)"
             if let db { sqlite3_close(db) }
-            throw AppDatabaseError.open(message)
+            throw AppDatabaseError.open(message, code: status)
         }
         handle = db
         sqlite3_busy_timeout(db, 2_000)
@@ -246,8 +283,9 @@ final class Connection {
 
     func rows<T>(_ sql: String, _ map: (Row) -> T) throws -> [T] {
         var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(handle, sql, -1, &statement, nil) == SQLITE_OK, let statement else {
-            throw AppDatabaseError.query(String(cString: sqlite3_errmsg(handle)))
+        let prepared = sqlite3_prepare_v2(handle, sql, -1, &statement, nil)
+        guard prepared == SQLITE_OK, let statement else {
+            throw AppDatabaseError.query(String(cString: sqlite3_errmsg(handle)), code: prepared)
         }
         defer { sqlite3_finalize(statement) }
         var result: [T] = []
@@ -255,7 +293,7 @@ final class Connection {
             let status = sqlite3_step(statement)
             if status == SQLITE_DONE { break }
             guard status == SQLITE_ROW else {
-                throw AppDatabaseError.query(String(cString: sqlite3_errmsg(handle)))
+                throw AppDatabaseError.query(String(cString: sqlite3_errmsg(handle)), code: status)
             }
             result.append(map(Row(statement: statement)))
         }

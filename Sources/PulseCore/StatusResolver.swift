@@ -116,7 +116,7 @@ public enum StatusResolver {
         }
 
         guard let log = record.log, log.phase != .unknown else {
-            if meta.isRunning {
+            if meta.isRunning == true {
                 set(.running, .working, since: meta.updatedAt)
             } else if meta.wasInterrupted {
                 ended(.interrupted, at: meta.updatedAt, detail: nil)
@@ -125,15 +125,16 @@ public enum StatusResolver {
         }
 
         // The log says mid-turn, but the app says not running and the log has gone quiet:
-        // the CLI died or was stopped without writing a final event.
-        if log.phase == .running, !meta.isRunning,
+        // the CLI died or was stopped without writing a final event. If the app's flag is
+        // unknown, the log is trusted.
+        if log.phase == .running, meta.isRunning == false,
            let lastEvent = log.lastEventAt, now.timeIntervalSince(lastEvent) > options.staleAfter {
             ended(meta.wasInterrupted ? .interrupted : .unresponsive, at: lastEvent, detail: nil)
             return snapshot
         }
 
         // The app already started a new turn but the CLI hasn't logged it yet.
-        if meta.isRunning, log.phase != .running, let updatedAt = meta.updatedAt,
+        if meta.isRunning == true, log.phase != .running, let updatedAt = meta.updatedAt,
            now.timeIntervalSince(updatedAt) < options.startingGrace,
            updatedAt.timeIntervalSince(log.phaseSince ?? .distantPast) > 1 {
             set(.running, .starting, since: updatedAt)
