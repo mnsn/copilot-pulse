@@ -17,6 +17,66 @@ make run     # run the app with your own ~/.copilot
 `make demo` creates a fake Copilot data directory in `build/demo` with a session in every
 state. Use it to work on the UI and to take screenshots without showing your own sessions.
 
+Other useful targets:
+
+```sh
+make build         # debug build
+make demo-check    # check that the demo sessions land in the expected groups (CI runs this)
+make screenshots   # render the README screenshots from the demo data
+make app           # build "Copilot Pulse.app" into ./build without installing
+make install       # build the app, copy it to ~/Applications and launch it
+make icon          # regenerate Resources/AppIcon.icns
+```
+
+[How it works](docs/how-it-works.md) explains where the data comes from and how updates are
+pushed without polling.
+
+## Project layout
+
+```text
+Sources/PulseCore/      the engine; UI-free, and fully tested
+  CopilotPaths          where the app keeps its files
+  AppDatabase           read-only SQLite queries (sessions, workspaces, unread markers, activity)
+  EventLogReader        reads new lines from the end of events.jsonl
+  EventLineParser       turns a JSON line into a LogEvent
+  SessionLogState       tracks a session's state from its log events
+  StatusResolver        combines database and log state into what the UI shows
+  FileEventStream       FSEvents wrapper
+  FileWriteWatcher      kqueue watcher for the SQLite WAL file
+  SessionEngine         wires it all together and publishes snapshots
+Sources/CopilotPulse/   the AppKit/SwiftUI app: menu bar, widget panel, settings, CLI
+Tests/PulseCoreTests/   Swift Testing suites, including live FSEvents/kqueue tests on temp files
+scripts/                app bundling and signing, the icon, and the demo data
+```
+
+## Debugging
+
+The app binary doubles as a command-line tool:
+
+```sh
+.build/debug/CopilotPulse --dump            # table of every session and its status
+.build/debug/CopilotPulse --json            # the same as JSON, with counts
+.build/debug/CopilotPulse --watch           # print status changes live as they happen
+.build/debug/CopilotPulse --render <dir>    # draw the panel and each widget size (light and dark) to PNGs
+```
+
+`make dump`, `make watch` and `make render` run these from a debug build. Set
+`COPILOT_PULSE_COPILOT_DIR` to read a different Copilot data directory; `make demo` uses it to
+point the app at `build/demo`.
+
+Diagnostics go to the system log:
+
+```sh
+log show --last 10m --info --predicate 'subsystem == "com.asaf.CopilotPulse"' --style compact
+```
+
+## Building with only the Command Line Tools
+
+- `make test` passes Swift Testing's macro plugin folder to the compiler explicitly. Without it,
+  `swift test` sometimes fails with "plugin for module 'TestingMacros' not found".
+- The `@State`, `@Entry` and `#Preview` SwiftUI macros aren't available without Xcode, so the
+  views use a small `@LocalState` property wrapper instead of `@State`.
+
 ## Ground rules
 
 - **Read-only.** Copilot Pulse must never write to, lock or otherwise change the Copilot app's
@@ -33,7 +93,7 @@ state. Use it to work on the UI and to take screenshots without showing your own
 
 - Keep each pull request focused, and describe the change users will see.
 - Run `make test` first. CI also runs it on macOS 15 and macOS 26.
-- Update the README when behavior or settings change.
+- Update the README, or [How it works](docs/how-it-works.md), when behavior or settings change.
 - For UI changes, include before and after screenshots from `make screenshots`.
 
 ## License
