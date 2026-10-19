@@ -195,6 +195,10 @@ func sql(_ value: String?) -> String {
 
 /// A stand-in for the Copilot app's `data.db` with only the tables and columns Copilot Pulse reads.
 /// It writes through its own connection, like the app does while Copilot Pulse reads.
+///
+/// Tests that write while the engine reads must use WAL, as the app does. With a rollback journal,
+/// a write that overlaps a read fails with "database is locked", or with "disk I/O error"
+/// (`SQLITE_IOERR_LOCK`) next to a read-only connection in the same process.
 final class TestDatabase {
     private var handle: OpaquePointer?
 
@@ -220,7 +224,8 @@ final class TestDatabase {
         var message: UnsafeMutablePointer<CChar>?
         guard sqlite3_exec(handle, statements, nil, nil, &message) == SQLITE_OK else {
             defer { sqlite3_free(message) }
-            throw TestError(message.map { String(cString: $0) } ?? "SQLite error")
+            let text = message.map { String(cString: $0) } ?? "SQLite error"
+            throw TestError("\(text) (code \(sqlite3_extended_errcode(handle)), errno \(sqlite3_system_errno(handle)))")
         }
     }
 

@@ -73,7 +73,7 @@ import Testing
         let root = try makeTemporaryDirectory()
         defer { try? FileManager.default.removeItem(at: root) }
         let paths = CopilotPaths(root: root)
-        let db = try TestDatabase(at: paths.database)
+        let db = try TestDatabase(at: paths.database, journalMode: "WAL")
         defer { db.close() }
         try db.createAppSchema()
         try db.addProject("p1", name: "Pulse")
