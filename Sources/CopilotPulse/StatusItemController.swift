@@ -96,8 +96,10 @@ final class StatusItemController: NSObject {
     }
 
     private static func symbol(_ name: String, color: NSColor, font: NSFont) -> NSAttributedString {
+        // Monochrome keeps the check and the exclamation mark cut out; one palette color fills them in.
         let configuration = NSImage.SymbolConfiguration(pointSize: font.pointSize - 2, weight: .semibold)
             .applying(NSImage.SymbolConfiguration(paletteColors: [color]))
+            .applying(.preferringMonochrome())
         guard let image = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
             .withSymbolConfiguration(configuration)
         else { return NSAttributedString() }
