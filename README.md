@@ -150,7 +150,9 @@ The app binary has debugging options, and logs diagnostics to the system log:
 ```sh
 APP="/Applications/Copilot Pulse.app/Contents/MacOS/CopilotPulse"   # ~/Applications after make install
 "$APP" --dump     # every session and its status
+"$APP" --json     # the same status as JSON, with counts
 "$APP" --watch    # status changes as they happen
+"$APP" --render /tmp/copilot-pulse-render  # render the menu and widget sizes to PNGs
 log show --last 10m --info --predicate 'subsystem == "com.asaf.CopilotPulse"' --style compact
 ```
 
