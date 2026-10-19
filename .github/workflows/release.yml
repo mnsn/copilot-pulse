@@ -1,0 +1,52 @@
+name: Release
+
+# Pushing a version tag such as v0.1.0 publishes a GitHub release with the universal app.
+# The tag must match CFBundleShortVersionString in Resources/Info.plist, and CHANGELOG.md needs a
+# section for that version; it becomes the release notes. See "Releasing" in CONTRIBUTING.md.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Publish the release
+    runs-on: macos-26
+    timeout-minutes: 30
+    permissions:
+      contents: write # to create the release
+      id-token: write # to sign the build provenance attestation
+      attestations: write # to store it
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcode-select --print-path
+          swift --version
+
+      - name: Package the app
+        run: ./scripts/package.sh "$GITHUB_REF_NAME"
+
+      - name: Test
+        run: make test
+
+      - name: Attest the build provenance
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-path: build/release/Copilot-Pulse.zip
+
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: >-
+          gh release create "$GITHUB_REF_NAME" --verify-tag
+          --title "Copilot Pulse ${GITHUB_REF_NAME#v}"
+          --notes-file build/release/notes.md
+          build/release/Copilot-Pulse.zip build/release/Copilot-Pulse.zip.sha256

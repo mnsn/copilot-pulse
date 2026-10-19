@@ -24,6 +24,7 @@ make build         # debug build
 make demo-check    # check that the demo sessions land in the expected groups (CI runs this)
 make screenshots   # render the README screenshots from the demo data
 make app           # build "Copilot Pulse.app" into ./build without installing
+make package       # build the universal app for a release, check it and zip it into build/release
 make install       # build the app, copy it to ~/Applications and launch it
 make icon          # regenerate Resources/AppIcon.icns
 ```
@@ -46,7 +47,7 @@ Sources/PulseCore/      the engine; UI-free, and fully tested
   SessionEngine         wires it all together and publishes snapshots
 Sources/CopilotPulse/   the AppKit/SwiftUI app: menu bar, widget panel, settings, CLI
 Tests/PulseCoreTests/   Swift Testing suites, including live FSEvents/kqueue tests on temp files
-scripts/                app bundling and signing, the icon, and the demo data
+scripts/                app bundling, packaging and signing, the icon, and the demo data
 ```
 
 ## Debugging
@@ -97,6 +98,28 @@ log show --last 10m --info --predicate 'subsystem == "com.asaf.CopilotPulse"' --
 - Run `make test` first. CI also runs it on macOS 15 and macOS 26.
 - Update the README, or [How it works](docs/how-it-works.md), when behavior or settings change.
 - For UI changes, include before and after screenshots from `make screenshots`.
+
+## Releasing
+
+Releases are built by GitHub Actions, not on a maintainer's Mac.
+
+1. Set the new version as `CFBundleShortVersionString` in `Resources/Info.plist`, and increase
+   `CFBundleVersion`.
+2. Add a section for it at the top of `CHANGELOG.md`, such as `## 0.2.0 - 2026-11-30`. It becomes
+   the release notes, so write it for users.
+3. Push to `main` and wait for CI. Its macOS 26 job uploads the packaged app as the
+   `Copilot-Pulse` artifact, and the next jobs run that app on macOS 15 on Apple silicon and Intel.
+4. Tag the commit and push the tag:
+
+   ```sh
+   git tag v0.2.0
+   git push origin v0.2.0
+   ```
+
+The tag starts the [release workflow](.github/workflows/release.yml). It checks that the tag
+matches `Info.plist`, builds and tests the universal app on macOS 26, attests its build provenance
+and publishes the release with `Copilot-Pulse.zip`, its SHA-256 and the changelog section. The
+app is signed ad hoc and isn't notarized, which is why the README explains the Gatekeeper step.
 
 ## License
 
