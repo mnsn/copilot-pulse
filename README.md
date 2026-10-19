@@ -24,7 +24,7 @@ configure.
 </p>
 
 > [!NOTE]
-> Copilot Pulse is an independent project. It isn't affiliated with or endorsed by GitHub..
+> Copilot Pulse is an independent project. It isn't affiliated with or endorsed by GitHub.
 
 ## Features
 
