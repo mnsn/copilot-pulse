@@ -133,6 +133,58 @@ import Testing
         }
     }
 
+    @Test func readsEachSessionsLatestContextUsage() throws {
+        try withTemporaryDirectory { directory in
+            let url = directory.appendingPathComponent("data.db")
+            let db = try TestDatabase(at: url)
+            defer { db.close() }
+            try db.createAppSchema()
+            try db.addSession(Self.chatId, title: "Chat", type: "general_chat")
+            try db.addSession("other-chat", title: "Other", type: "general_chat")
+            try db.addSession("unmeasured", title: "Unmeasured", type: "general_chat")
+            // The latest measurement counts, whatever order the rows are in. Rows without a limit don't.
+            try db.addContextUsage(session: Self.chatId, tokens: 90_000, limit: 200_000, at: t(20))
+            try db.addContextUsage(session: Self.chatId, tokens: 30_000, limit: 200_000, at: t(10))
+            try db.addContextUsage(session: "other-chat", tokens: 64_000, limit: 128_000, at: t(5))
+            try db.addContextUsage(session: "other-chat", tokens: 5_000, limit: 0, at: t(30))
+
+            let sessions = Dictionary(uniqueKeysWithValues: try AppDatabase.load(at: url).sessions.map { ($0.id, $0) })
+            #expect(sessions[Self.chatId]?.contextUsage == ContextUsage(tokens: 90_000, limit: 200_000))
+            #expect(sessions["other-chat"]?.contextUsage == ContextUsage(tokens: 64_000, limit: 128_000))
+            #expect(sessions["unmeasured"]?.contextUsage == nil)
+        }
+    }
+
+    /// Older app versions don't record context usage.
+    @Test func loadsSessionsWithoutContextUsage() throws {
+        try withTemporaryDirectory { directory in
+            let url = directory.appendingPathComponent("data.db")
+            let db = try TestDatabase(at: url)
+            defer { db.close() }
+            try db.createAppSchema()
+            try db.exec("DROP TABLE session_context_usage;")
+            try db.addSession(Self.chatId, title: "Chat", type: "general_chat")
+
+            let sessions = try AppDatabase.load(at: url).sessions
+            #expect(sessions.map(\.id) == [Self.chatId])
+            #expect(sessions.first?.contextUsage == nil)
+        }
+    }
+
+    @Test(arguments: [
+        (0, 200_000, 0.0, 0),
+        (50_000, 200_000, 0.25, 25),
+        (198_000, 200_000, 0.99, 99),
+        (250_000, 200_000, 1.0, 100),
+        (-5, 100, 0.0, 0),
+        (10, 0, 0.0, 0),
+    ] as [(Int, Int, Double, Int)])
+    func contextUsageIsAShareOfTheWindow(_ tokens: Int, _ limit: Int, _ fraction: Double, _ percent: Int) {
+        let usage = ContextUsage(tokens: tokens, limit: limit)
+        #expect(usage.fraction == fraction)
+        #expect(usage.percent == percent)
+    }
+
     /// Standard SQLite builds remove the write-ahead log when the app closes the database, and a
     /// read-only connection can't recreate it.
     @Test func readsTheDatabaseWhileTheAppIsClosed() throws {

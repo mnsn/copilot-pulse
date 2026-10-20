@@ -109,6 +109,7 @@ Open the gear menu in the menu-bar panel, or right-click the widget.
 | Widget Position | **On Desktop (Behind Windows)** like a real widget, or **Floating (Above Windows)** |
 | Widget Size | Compact (2 rows), Medium (4), Large (8) |
 | Keep Finished Sessions For | 15 minutes, 1 hour, 4 hours, 1 day |
+| Show Context Usage | off by default: how full each session's context window is, in orange as Copilot nears compacting the conversation |
 | Launch at Login | on/off |
 | Check for Updates Automatically | on/off (once a day) |
 

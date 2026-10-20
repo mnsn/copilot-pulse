@@ -1,13 +1,15 @@
 import PulseCore
 import SwiftUI
 
-/// One session: status icon, name, state line, optional detail, and how long it's been in that state.
+/// One session: status icon, name, state line, optional detail, how long it's been in that state, and,
+/// if turned on, how full its context window is.
 struct SessionRowView: View {
     let session: SessionSnapshot
     let now: Date
     var compact = false
     var action: () -> Void
 
+    @EnvironmentObject private var settings: AppSettings
     @LocalState private var isHovered = false
 
     /// Fixed height of a compact row, so the widget can size itself to a whole number of rows.
@@ -30,6 +32,9 @@ struct SessionRowView: View {
                             .lineLimit(1)
                             .truncationMode(.tail)
                         Spacer(minLength: 4)
+                        if let contextUsage {
+                            ContextUsageView(usage: contextUsage)
+                        }
                         Text(Elapsed.short(since: session.since, now: now))
                             .font(.system(size: 11).monospacedDigit())
                             .foregroundStyle(.secondary)
@@ -69,8 +74,13 @@ struct SessionRowView: View {
         .help(helpText)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(session.displayName), \(session.headline)")
-        .accessibilityValue(session.detail ?? "")
+        .accessibilityValue([session.detail, contextUsage.map(ContextUsageView.description)].compactMap { $0 }.joined(separator: ", "))
         .accessibilityHint("Opens the session in GitHub Copilot")
+    }
+
+    /// The session's context usage, when the setting is on and the app has measured it.
+    private var contextUsage: ContextUsage? {
+        settings.showContextUsage ? session.contextUsage : nil
     }
 
     private var compactLine: String {
@@ -82,8 +92,45 @@ struct SessionRowView: View {
         var lines = [session.displayName, session.subtitle]
         if let detail = session.detail { lines.append(detail) }
         if !session.choices.isEmpty { lines.append("Options: " + session.choices.joined(separator: " | ")) }
+        if let contextUsage { lines.append(ContextUsageView.description(contextUsage)) }
         lines.append("Click to open in GitHub Copilot")
         return lines.joined(separator: "\n")
+    }
+}
+
+/// How full a session's context window is: a ring and a percentage. It turns orange as the
+/// conversation nears the size at which Copilot compacts it (about 80% of the window).
+struct ContextUsageView: View {
+    let usage: ContextUsage
+
+    static let warningFraction = 0.7
+
+    var body: some View {
+        HStack(spacing: 3) {
+            ZStack {
+                Circle()
+                    .stroke(Color.secondary.opacity(0.35), lineWidth: 1.5)
+                Circle()
+                    .trim(from: 0, to: usage.fraction)
+                    .stroke(color, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+            }
+            .frame(width: 9, height: 9)
+            Text("\(usage.percent)%")
+                .font(.system(size: 11).monospacedDigit())
+                .foregroundStyle(color)
+        }
+        .fixedSize()
+    }
+
+    private var color: Color {
+        usage.fraction >= Self.warningFraction ? .orange : .secondary
+    }
+
+    static func description(_ usage: ContextUsage) -> String {
+        let tokens = usage.tokens.formatted(.number.notation(.compactName))
+        let limit = usage.limit.formatted(.number.notation(.compactName))
+        return "Context: \(usage.percent)% full (\(tokens) of \(limit) tokens)"
     }
 }
 

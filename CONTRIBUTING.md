@@ -37,7 +37,7 @@ pushed without polling.
 ```text
 Sources/PulseCore/      the engine; UI-free, and fully tested
   CopilotPaths          where the app keeps its files
-  AppDatabase           read-only SQLite queries (sessions, workspaces, unread markers, activity)
+  AppDatabase           read-only SQLite queries (sessions, workspaces, unread markers, activity, context usage)
   EventLogReader        reads new lines from the end of events.jsonl
   EventLineParser       turns a JSON line into a LogEvent
   SessionLogState       tracks a session's state from its log events

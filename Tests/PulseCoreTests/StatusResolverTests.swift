@@ -47,6 +47,13 @@ private let finishedTurn = [Line.userMessage(at: t(1)), Line.assistantMessage(at
         #expect(snapshot.detail == detail, sourceLocation: sourceLocation)
     }
 
+    @Test func carriesTheContextUsage() {
+        var measured = meta()
+        measured.contextUsage = ContextUsage(tokens: 120_000, limit: 200_000)
+        #expect(resolve(finishedTurn, measured, now: t(10)).contextUsage == ContextUsage(tokens: 120_000, limit: 200_000))
+        #expect(resolve(finishedTurn, meta(), now: t(10)).contextUsage == nil)
+    }
+
     @Test func withoutALogTheAppsFlagsDecide() {
         verify(resolve(nil, meta(running: true, updatedAt: t(5)), now: t(10)), .running, .working, since: t(5))
         verify(resolve(nil, meta(interrupted: true, updatedAt: t(5)), now: t(10)), .stopped, .interrupted, since: t(5))

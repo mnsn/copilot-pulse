@@ -22,13 +22,15 @@ public struct SessionMeta: Sendable, Equatable, Codable {
     public var workspaceId: String?
     /// Latest entry in the app's activity feed for this session.
     public var lastActivity: ActivityPreview?
+    /// How full the session's context window was when the app last measured it.
+    public var contextUsage: ContextUsage?
 
     public init(
         id: String, name: String, sessionType: String = "project", mode: String? = nil,
         isRunning: Bool? = false, wasInterrupted: Bool = false, interruptionReason: String? = nil,
         createdAt: Date? = nil, updatedAt: Date? = nil, projectName: String? = nil,
         branch: String? = nil, creatorSessionId: String? = nil, workspaceId: String? = nil,
-        lastActivity: ActivityPreview? = nil
+        lastActivity: ActivityPreview? = nil, contextUsage: ContextUsage? = nil
     ) {
         self.id = id
         self.name = name
@@ -44,9 +46,28 @@ public struct SessionMeta: Sendable, Equatable, Codable {
         self.creatorSessionId = creatorSessionId
         self.workspaceId = workspaceId
         self.lastActivity = lastActivity
+        self.contextUsage = contextUsage
     }
 
     public var isChat: Bool { sessionType == "general_chat" }
+}
+
+/// How much of a session's context window its conversation takes up, in tokens, as the app records it.
+public struct ContextUsage: Sendable, Equatable, Codable {
+    public var tokens: Int
+    public var limit: Int
+
+    public init(tokens: Int, limit: Int) {
+        self.tokens = tokens
+        self.limit = limit
+    }
+
+    /// The share of the window in use, from 0 to 1.
+    public var fraction: Double {
+        limit > 0 ? min(max(Double(tokens) / Double(limit), 0), 1) : 0
+    }
+
+    public var percent: Int { Int((fraction * 100).rounded()) }
 }
 
 public enum AppDatabaseError: Error, CustomStringConvertible {
@@ -142,6 +163,15 @@ public enum AppDatabase {
         SELECT key, value, updated_at FROM app_state WHERE key IN ('workspace-unread', 'lastRoutePath')
         """
 
+    /// Each session's latest context-window measurement. SQLite takes the bare columns from the row
+    /// with the largest `ts_ms`.
+    static let contextUsageQuery = """
+        SELECT session_id, current_tokens, token_limit, MAX(ts_ms)
+        FROM session_context_usage
+        WHERE token_limit > 0
+        GROUP BY session_id
+        """
+
     public static func loadVisibleSessions(at url: URL) throws -> [SessionMeta] {
         try load(at: url).sessions
     }
@@ -175,6 +205,15 @@ public enum AppDatabase {
             let bySession = Dictionary(latest, uniquingKeysWith: { first, _ in first })
             for index in sessions.indices {
                 sessions[index].lastActivity = bySession[sessions[index].id]
+            }
+        }
+
+        if let usage = try? connection.rows(contextUsageQuery, { row in
+            (row.text(0) ?? "", ContextUsage(tokens: row.int(1), limit: row.int(2)))
+        }) {
+            let bySession = Dictionary(usage, uniquingKeysWith: { first, _ in first })
+            for index in sessions.indices {
+                sessions[index].contextUsage = bySession[sessions[index].id]
             }
         }
 
@@ -313,6 +352,10 @@ struct Row {
 
     func bool(_ column: Int32) -> Bool {
         sqlite3_column_int64(statement, column) != 0
+    }
+
+    func int(_ column: Int32) -> Int {
+        Int(sqlite3_column_int64(statement, column))
     }
 
     /// ISO-8601 text today; numeric epoch (seconds or milliseconds) is accepted defensively.

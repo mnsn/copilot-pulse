@@ -242,6 +242,9 @@ final class TestDatabase {
             id TEXT PRIMARY KEY NOT NULL, session_id TEXT, activity_type TEXT NOT NULL,
             preview TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL);
         CREATE TABLE app_state (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL, updated_at TEXT NOT NULL);
+        CREATE TABLE session_context_usage (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, ts_ms INTEGER NOT NULL,
+            current_tokens INTEGER NOT NULL, token_limit INTEGER NOT NULL);
         """
 
     func createAppSchema() throws {
@@ -285,6 +288,13 @@ final class TestDatabase {
     func setAppState(_ key: String, _ value: String, at date: Date) throws {
         try exec("""
             INSERT OR REPLACE INTO app_state (key, value, updated_at) VALUES (\(sql(key)), \(sql(value)), \(sql(iso(date))));
+            """)
+    }
+
+    func addContextUsage(session: String, tokens: Int, limit: Int, at date: Date) throws {
+        try exec("""
+            INSERT INTO session_context_usage (session_id, ts_ms, current_tokens, token_limit)
+            VALUES (\(sql(session)), \(Int(date.timeIntervalSince1970 * 1_000)), \(tokens), \(limit));
             """)
     }
 }

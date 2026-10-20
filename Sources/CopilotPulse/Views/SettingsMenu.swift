@@ -25,6 +25,8 @@ struct SettingsMenuContent: View {
         }
         .pickerStyle(.menu)
 
+        Toggle("Show Context Usage", isOn: $settings.showContextUsage)
+
         if loginItem.isAvailable {
             Toggle("Launch at Login", isOn: Binding(
                 get: { loginItem.isEnabled },

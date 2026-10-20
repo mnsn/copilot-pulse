@@ -131,6 +131,8 @@ struct Session {
     var running = false
     var createdAt: Date
     var updatedAt: Date
+    /// Context-window tokens in use, and the model's limit.
+    var context: (tokens: Int, limit: Int)
     var log: Log
 }
 
@@ -138,18 +140,18 @@ var sessions: [Session] = []
 
 func session(
     _ id: String, _ name: String, project: String?, branch: String = "main", mode: String = "interactive",
-    running: Bool = false, started: Date, updated: Date? = nil, _ build: (inout Log) -> Void
+    running: Bool = false, started: Date, updated: Date? = nil, context: (Int, Int), _ build: (inout Log) -> Void
 ) {
     var log = Log()
     log.start(name, at: started)
     build(&log)
     sessions.append(Session(id: id, name: name, project: project, branch: branch, mode: mode, running: running,
-                            createdAt: started, updatedAt: updated ?? started, log: log))
+                            createdAt: started, updatedAt: updated ?? started, context: context, log: log))
 }
 
 // Needs you: a question, a plan to approve and a permission prompt.
 session("0b6c1f44-6a1e-4c55-9d0e-3f0a6f1c2a01", "Add dark mode to settings", project: "shop-web", branch: "dark-mode",
-        running: true, started: ago(9 * minute)) { log in
+        running: true, started: ago(9 * minute), context: (46_000, 200_000)) { log in
     log.tool("view", ["path": "src/settings/SettingsPage.tsx"], at: ago(8 * minute))
     log.tool("ask_user", [
         "question": "Should dark mode follow the system appearance?",
@@ -157,14 +159,14 @@ session("0b6c1f44-6a1e-4c55-9d0e-3f0a6f1c2a01", "Add dark mode to settings", pro
     ], at: ago(4 * minute), finished: false)
 }
 session("5d2e8a90-1f3b-4e7c-8a26-7b9c0d4e5f02", "Move sign-in to OAuth 2.1", project: "acme-api", branch: "oauth",
-        mode: "plan", running: true, started: ago(14 * minute)) { log in
+        mode: "plan", running: true, started: ago(14 * minute), context: (160_000, 272_000)) { log in
     log.tool("grep", ["pattern": "session_cookie"], at: ago(12 * minute))
     log.tool("exit_plan_mode", [
         "summary": "Replace cookie sessions with OAuth 2.1 and PKCE.",
     ], at: ago(2 * minute), finished: false)
 }
 session("9a4f2b17-c3d8-4e61-b5a0-2e8d7c6b4a03", "Release 2.4.0", project: "acme-api", branch: "release-2.4",
-        running: true, started: ago(6 * minute)) { log in
+        running: true, started: ago(6 * minute), context: (31_000, 128_000)) { log in
     log.tool("bash", ["command": "npm version 2.4.0", "description": "Bump the version"], at: ago(5 * minute))
     log.tool("bash", ["command": "git push origin main --follow-tags", "description": "Push the release"],
              at: ago(1 * minute + 2), finished: false)
@@ -173,41 +175,41 @@ session("9a4f2b17-c3d8-4e61-b5a0-2e8d7c6b4a03", "Release 2.4.0", project: "acme-
 
 // Running: a project session and a chat.
 session("3c7e9d21-8b4a-4f10-a6e2-5d1c0b9a8e04", "Fix flaky checkout test", project: "shop-web", branch: "fix-flaky-checkout",
-        running: true, started: ago(7 * minute)) { log in
+        running: true, started: ago(7 * minute), context: (152_000, 200_000)) { log in
     log.tool("view", ["path": "tests/checkout.spec.ts"], at: ago(6 * minute))
     log.tool("bash", ["command": "for i in $(seq 20); do npm test -- checkout; done",
                       "description": "Run the checkout tests 20 times"],
              at: ago(40), finished: false)
 }
 session("e81b5c63-2d9f-4a7e-9c34-1f6a8b2d0c05", "When to use an actor instead of a lock?", project: nil,
-        running: true, started: ago(25)) { log in
+        running: true, started: ago(25), context: (9_000, 200_000)) { log in
     log.tool("web_fetch", ["url": "https://docs.swift.org/swift-book/"], title: "Reading the Swift book",
              at: ago(10), finished: false)
 }
 
 // Done and stopped, recently enough to be highlighted.
 session("6f0d3a85-4e2c-4b9a-8d17-9c5e2a1b3f06", "Update README screenshots", project: "website",
-        started: ago(19 * minute), updated: ago(12 * minute)) { log in
+        started: ago(19 * minute), updated: ago(12 * minute), context: (88_000, 200_000)) { log in
     log.tool("bash", ["command": "make screenshots", "description": "Render the screenshots"], at: ago(17 * minute))
     log.finish("Replaced all four README screenshots.", at: ago(12 * minute))
 }
 session("b2a9e4c7-5f1d-4c38-a0b6-8e3d9f2c1a07", "Upgrade to Node 24", project: "shop-web", branch: "node-24",
-        started: ago(26 * minute), updated: ago(20 * minute)) { log in
+        started: ago(26 * minute), updated: ago(20 * minute), context: (61_000, 128_000)) { log in
     log.tool("bash", ["command": "npm install", "description": "Install dependencies"], at: ago(24 * minute))
     log.error("Lost the connection to the model. Try again.", at: ago(20 * minute))
 }
 
 // Idle: ended a while ago.
 session("47c1d8e2-9a3b-4f65-b8d0-6c2e1a9f4b08", "Set up CI", project: "website", branch: "ci",
-        started: ago(3 * hour + 20 * minute), updated: ago(3 * hour)) { log in
+        started: ago(3 * hour + 20 * minute), updated: ago(3 * hour), context: (54_000, 200_000)) { log in
     log.finish("Added a workflow that builds and deploys the site on every push to main.", at: ago(3 * hour))
 }
 session("d5e3a7b9-1c4f-4d82-9e6a-3b8f0c2d5e09", "Regex for semver tags", project: nil,
-        started: ago(day + 2 * hour), updated: ago(day + 2 * hour - 90)) { log in
+        started: ago(day + 2 * hour), updated: ago(day + 2 * hour - 90), context: (4_000, 200_000)) { log in
     log.finish("Use ^v(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)$ to match tags like v1.2.3.", at: ago(day + 2 * hour - 90))
 }
 session("8b2f6c4d-7e1a-4b93-a5c8-0d9e3f1b6a10", "Bump dependencies", project: "acme-api", branch: "deps",
-        started: ago(2 * day + hour), updated: ago(2 * day)) { log in
+        started: ago(2 * day + hour), updated: ago(2 * day), context: (132_000, 272_000)) { log in
     log.finish("Updated 14 packages to their latest minor versions. All tests pass.", at: ago(2 * day))
 }
 
@@ -239,6 +241,9 @@ var statements = """
         id TEXT PRIMARY KEY NOT NULL, session_id TEXT, activity_type TEXT NOT NULL,
         preview TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL);
     CREATE TABLE app_state (key TEXT PRIMARY KEY NOT NULL, value TEXT NOT NULL, updated_at TEXT NOT NULL);
+    CREATE TABLE session_context_usage (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL, ts_ms INTEGER NOT NULL,
+        current_tokens INTEGER NOT NULL, token_limit INTEGER NOT NULL);
 
     """
 for project in Set(sessions.compactMap(\.project)).sorted() {
@@ -249,6 +254,9 @@ for (index, session) in sessions.enumerated() {
         INSERT INTO sessions (id, title, session_type, mode, is_running, created_at, updated_at)
         VALUES (\(sql(session.id)), \(sql(session.name)), \(sql(session.project == nil ? "general_chat" : "project")),
                 \(sql(session.mode)), \(session.running ? 1 : 0), \(sql(iso(session.createdAt))), \(sql(iso(session.updatedAt))));
+        INSERT INTO session_context_usage (session_id, ts_ms, current_tokens, token_limit)
+        VALUES (\(sql(session.id)), \(Int(session.updatedAt.timeIntervalSince1970 * 1_000)), \(session.context.tokens),
+                \(session.context.limit));
 
         """
     if let project = session.project {

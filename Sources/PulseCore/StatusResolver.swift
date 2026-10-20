@@ -55,6 +55,8 @@ public struct SessionSnapshot: Sendable, Equatable, Identifiable, Codable {
     public var choices: [String]
     /// When the session entered its current state.
     public var since: Date?
+    /// How full the session's context window is, when the app has measured it.
+    public var contextUsage: ContextUsage? = nil
 
     public var displayName: String {
         if !name.isEmpty { return name }
@@ -95,7 +97,8 @@ public enum StatusResolver {
         var snapshot = SessionSnapshot(
             id: meta.id, name: PlainText.singleLine(meta.name), projectName: meta.projectName, branch: meta.branch,
             isChat: meta.isChat, mode: meta.mode, phase: .idle, reason: .idle,
-            headline: StatusReason.idle.headline, detail: nil, choices: [], since: meta.updatedAt
+            headline: StatusReason.idle.headline, detail: nil, choices: [], since: meta.updatedAt,
+            contextUsage: meta.contextUsage
         )
 
         func set(_ phase: DisplayPhase, _ reason: StatusReason, since: Date?, detail: String? = nil, choices: [String] = []) {

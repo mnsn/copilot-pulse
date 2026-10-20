@@ -6,7 +6,7 @@ The Copilot app already records everything needed, in two places under `~/.copil
 
 | Source | Written by | Provides |
 |---|---|---|
-| `data.db` (SQLite, WAL mode) | the Copilot app | sessions, names, projects/branches, the "is running" flag, unread markers, the activity feed |
+| `data.db` (SQLite, WAL mode) | the Copilot app | sessions, names, projects/branches, the "is running" flag, unread markers, the activity feed, how full each session's context window is |
 | `session-state/<id>/events.jsonl` | the Copilot agent | a step-by-step log: turns, tool calls, questions, plans, permission prompts, errors |
 
 Copilot Pulse combines the two. The database says which sessions exist and whether the app
@@ -40,6 +40,10 @@ it applies. A few more details:
 - Detailed states (questions, plans, permissions, the current step) come from the agent's log on
   this Mac. A session without a local log only shows Running, Interrupted or Idle, based on the
   app's own flags.
+- **Show Context Usage** shows the app's latest measurement of each session's context window
+  (`session_context_usage`): the tokens the conversation takes up, as a share of the model's
+  limit. Copilot compacts a conversation at about 80% of the limit, so the percentage turns
+  orange from 70%. Sessions the app hasn't measured show nothing.
 - Clicking a session opens it through the Copilot app's `ghapp://sessions/<id>` link.
 
 ## Updates are pushed, not polled

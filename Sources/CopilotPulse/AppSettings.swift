@@ -38,6 +38,7 @@ final class AppSettings: ObservableObject {
         static let placement = "widgetPlacement"
         static let widgetSize = "widgetSize"
         static let keepEndedMinutes = "keepEndedMinutes"
+        static let showContextUsage = "showContextUsage"
         static let acknowledged = "acknowledgedSessions"
     }
 
@@ -56,6 +57,10 @@ final class AppSettings: ObservableObject {
     @Published var keepEndedMinutes: Int {
         didSet { defaults.set(keepEndedMinutes, forKey: Key.keepEndedMinutes) }
     }
+    /// Shows how full each session's context window is.
+    @Published var showContextUsage: Bool {
+        didSet { defaults.set(showContextUsage, forKey: Key.showContextUsage) }
+    }
     /// Session ID → when the user last dismissed its finished/stopped state.
     @Published private(set) var acknowledged: [String: Date]
 
@@ -66,6 +71,7 @@ final class AppSettings: ObservableObject {
         widgetSize = defaults.string(forKey: Key.widgetSize).flatMap(WidgetSize.init) ?? .medium
         let minutes = defaults.integer(forKey: Key.keepEndedMinutes)
         keepEndedMinutes = minutes > 0 ? minutes : 60
+        showContextUsage = defaults.bool(forKey: Key.showContextUsage)
 
         let stored = defaults.dictionary(forKey: Key.acknowledged) as? [String: Double] ?? [:]
         let cutoff = Date().addingTimeInterval(-7 * 86_400)
