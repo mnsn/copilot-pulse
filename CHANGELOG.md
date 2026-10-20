@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.0 - 2026-10-20
+
+- **Context usage**: a new setting, **Show Context Usage**, shows how full each session's context
+  window is, as a small ring and a percentage in the panel and the widget. It turns orange as
+  Copilot nears compacting the conversation. It's off by default, and it reads what the Copilot
+  app already records on your Mac.
+
 ## 0.2.0 - 2026-10-20
 
 - **Updates**: Copilot Pulse now updates itself, with [Sparkle](https://sparkle-project.org). The
