@@ -1,7 +1,9 @@
 #!/bin/bash
 # Builds what a GitHub release ships, into build/release: a universal "Copilot Pulse.app", checked
-# and zipped, the zip's SHA-256, and release notes from CHANGELOG.md.
-#   scripts/package.sh [tag]   with a tag such as v0.1.0, fails unless it matches Info.plist.
+# and zipped, the zip's SHA-256, and release notes from CHANGELOG.md (notes.md for the release page,
+# changes.md for the appcast that scripts/make-appcast.sh writes).
+#   scripts/package.sh [tag]   with a tag such as v0.1.0, fails unless it matches Info.plist and is
+#                              higher than every earlier v* tag.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -10,9 +12,27 @@ OUT="build/release"
 ZIP="Copilot-Pulse.zip"
 
 VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' Resources/Info.plist)"
-if [[ $# -gt 0 && "$1" != "v$VERSION" ]]; then
-    echo "The tag $1 doesn't match the version in Resources/Info.plist ($VERSION)." >&2
+# The build sets CFBundleVersion to this version, and Sparkle offers an update only when that's
+# higher than the installed app's, so keep it to plain numbers that compare the same way.
+if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "The version in Resources/Info.plist ($VERSION) isn't like 1.2.3." >&2
     exit 1
+fi
+if [[ $# -gt 0 ]]; then
+    if [[ "$1" != "v$VERSION" ]]; then
+        echo "The tag $1 doesn't match the version in Resources/Info.plist ($VERSION)." >&2
+        exit 1
+    fi
+    if [[ "$(git rev-parse --is-shallow-repository)" == true ]]; then
+        echo "Comparing with earlier releases needs every tag; fetch the full history." >&2
+        exit 1
+    fi
+    LATEST="$(git tag --list 'v*' | grep -vxF "$1" | sed 's/^v//' | sort -V | tail -n 1 || true)"
+    if [[ -n "$LATEST" && "$(printf '%s\n%s\n' "$LATEST" "$VERSION" | sort -V | tail -n 1)" != "$VERSION" ]] ||
+        [[ "$LATEST" == "$VERSION" ]]; then
+        echo "Version $VERSION isn't higher than the latest release, $LATEST." >&2
+        exit 1
+    fi
 fi
 # The CHANGELOG.md section for this version, without its heading.
 CHANGES="$(awk -v version="$VERSION" '
@@ -58,9 +78,12 @@ Requires macOS 15 or later, on Apple silicon or Intel.
 2. Open it. The app isn't notarized, so macOS blocks it the first time: click **Done**, then
    **Open Anyway** in **System Settings › Privacy & Security**.
 
-The [README](https://github.com/mnsn/copilot-pulse#install) has the details, and how to build it
-from source.
+After that, it updates itself: the second time you open it, it asks whether to check for updates
+automatically. The [README](https://github.com/mnsn/copilot-pulse#install) has the details, and
+how to build it from source.
 
 SHA-256 of $ZIP: \`$SHA256\`
 EOF
+# The release notes that the app shows before it updates (see scripts/make-appcast.sh).
+unwrap > "$OUT/changes.md" <<< "$CHANGES"
 echo "Packaged $OUT/$ZIP (version $VERSION)"

@@ -44,6 +44,10 @@ jobs:
       - name: Package the app
         run: make package
 
+      # Signs the package the way a release does, with a throwaway key instead of the real one.
+      - name: Check the update signing
+        run: ./scripts/appcast-dry-run.sh
+
       # The release workflow builds on macos-26 too, so this is what a release would contain.
       - name: Upload the package
         if: matrix.os == 'macos-26'

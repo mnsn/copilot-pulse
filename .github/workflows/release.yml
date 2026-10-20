@@ -1,8 +1,9 @@
 name: Release
 
-# Pushing a version tag such as v0.1.0 publishes a GitHub release with the universal app.
-# The tag must match CFBundleShortVersionString in Resources/Info.plist, and CHANGELOG.md needs a
-# section for that version; it becomes the release notes. See "Releasing" in CONTRIBUTING.md.
+# Pushing a version tag such as v0.2.0 publishes a GitHub release with the universal app and the
+# appcast that the app's updater reads. The tag must match CFBundleShortVersionString in
+# Resources/Info.plist and be higher than every earlier tag, and CHANGELOG.md needs a section for
+# that version; it becomes the release notes. See "Releasing" in CONTRIBUTING.md.
 on:
   push:
     tags: ['v*']
@@ -11,18 +12,15 @@ permissions:
   contents: read
 
 jobs:
-  release:
-    name: Publish the release
+  build:
+    name: Build the release
     runs-on: macos-26
     timeout-minutes: 30
-    permissions:
-      contents: write # to create the release
-      id-token: write # to sign the build provenance attestation
-      attestations: write # to store it
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0 # every tag, to check that the version is higher
 
       - name: Show toolchain
         run: |
@@ -36,10 +34,67 @@ jobs:
       - name: Test
         run: make test
 
+      - name: Upload the package
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release
+          path: build/release/
+          if-no-files-found: error
+
+  # Signs exactly what the build job packaged, with the update signing key, which only this job's
+  # environment holds. The environment waits for a maintainer's approval.
+  publish:
+    name: Sign and publish the release
+    needs: build
+    runs-on: macos-26
+    timeout-minutes: 20
+    environment: release
+    permissions:
+      contents: write # to create the release
+      id-token: write # to sign the build provenance attestation
+      attestations: write # to store it
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release
+          path: build/release
+
+      - name: Check the package
+        run: cd build/release && shasum -a 256 -c Copilot-Pulse.zip.sha256
+
+      - name: Get Sparkle's tools
+        run: swift package resolve
+
+      # The key goes to generate_appcast on standard input only, never in an argument.
+      - name: Sign the update and write the appcast
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          if [ -z "$SPARKLE_PRIVATE_KEY" ]; then
+            echo "::error::The release environment has no SPARKLE_PRIVATE_KEY secret."
+            exit 1
+          fi
+          printf '%s\n' "$SPARKLE_PRIVATE_KEY" | env -u SPARKLE_PRIVATE_KEY ./scripts/make-appcast.sh \
+            build/release "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/"
+
+      # Checks with the public key in Info.plist, which the installed apps have too.
+      - name: Check the signatures
+        run: >-
+          swift scripts/verify-appcast.swift build/release/appcast.xml build/release/Copilot-Pulse.zip
+          "https://github.com/$GITHUB_REPOSITORY/releases/download/$GITHUB_REF_NAME/"
+          "$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' Resources/Info.plist)"
+          "${GITHUB_REF_NAME#v}"
+
       - name: Attest the build provenance
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
         with:
-          subject-path: build/release/Copilot-Pulse.zip
+          subject-path: |
+            build/release/Copilot-Pulse.zip
+            build/release/appcast.xml
 
       - name: Publish the release
         env:
@@ -50,3 +105,4 @@ jobs:
           --title "Copilot Pulse ${GITHUB_REF_NAME#v}"
           --notes-file build/release/notes.md
           build/release/Copilot-Pulse.zip build/release/Copilot-Pulse.zip.sha256
+          build/release/appcast.xml
