@@ -63,7 +63,8 @@ enum Renderer {
         let host = NSHostingView(rootView: view
             .environmentObject(store)
             .environmentObject(settings)
-            .environmentObject(loginItem))
+            .environmentObject(loginItem)
+            .environmentObject(Updater())) // never started: rendering doesn't check for updates
         host.appearance = appearance
         let window = NSWindow(contentRect: CGRect(x: -20_000, y: -20_000, width: 400, height: 300),
                               styleMask: .borderless, backing: .buffered, defer: false)

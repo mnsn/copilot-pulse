@@ -14,13 +14,15 @@ final class DesktopWidgetController {
     private let store: SessionStore
     private let settings: AppSettings
     private let loginItem: LoginItem
+    private let updater: Updater
     private var panel: WidgetPanel?
     private var cancellables: Set<AnyCancellable> = []
 
-    init(store: SessionStore, settings: AppSettings, loginItem: LoginItem) {
+    init(store: SessionStore, settings: AppSettings, loginItem: LoginItem, updater: Updater) {
         self.store = store
         self.settings = settings
         self.loginItem = loginItem
+        self.updater = updater
 
         settings.$showWidget
             .combineLatest(settings.$placement, settings.$widgetSize)
@@ -78,6 +80,7 @@ final class DesktopWidgetController {
                 .environmentObject(store)
                 .environmentObject(settings)
                 .environmentObject(loginItem)
+                .environmentObject(updater)
         )
         host.sizingOptions = []
         host.translatesAutoresizingMaskIntoConstraints = false

@@ -13,7 +13,7 @@ final class StatusItemController: NSObject {
 
     private static let shownPhases: [DisplayPhase] = [.needsYou, .running, .done, .stopped]
 
-    init(store: SessionStore, settings: AppSettings, loginItem: LoginItem) {
+    init(store: SessionStore, settings: AppSettings, loginItem: LoginItem, updater: Updater) {
         self.store = store
         super.init()
 
@@ -22,6 +22,7 @@ final class StatusItemController: NSObject {
                 .environmentObject(store)
                 .environmentObject(settings)
                 .environmentObject(loginItem)
+                .environmentObject(updater)
         )
         host.sizingOptions = [.preferredContentSize]
         popover.contentViewController = host

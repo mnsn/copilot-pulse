@@ -18,10 +18,9 @@
 	<string>Copilot Pulse</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<!-- The build sets CFBundleVersion to this version too: Sparkle compares it to find updates. -->
 	<key>CFBundleShortVersionString</key>
 	<string>0.1.0</string>
-	<key>CFBundleVersion</key>
-	<string>1</string>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.developer-tools</string>
 	<key>LSMinimumSystemVersion</key>
@@ -32,5 +31,20 @@
 	<true/>
 	<key>NSHumanReadableCopyright</key>
 	<string>Copyright © 2026 Asaf Manassen. Licensed under GPL-3.0-or-later.</string>
+	<!-- Sparkle: the appcast is an asset of the latest GitHub release. -->
+	<key>SUFeedURL</key>
+	<string>https://github.com/mnsn/copilot-pulse/releases/latest/download/appcast.xml</string>
+	<!-- Updates, the appcast and its release notes must be signed with this key's private key.
+	     Never change it: installed apps would reject every update (see CONTRIBUTING.md). -->
+	<key>SUPublicEDKey</key>
+	<string>19vCJ0zNS7ujM7R2zIFCkSy6oPxaKbjiUJZX05x82vI=</string>
+	<key>SURequireSignedFeed</key>
+	<true/>
+	<key>SUVerifyUpdateBeforeExtraction</key>
+	<true/>
+	<!-- Never fall back to accepting an unsigned appcast. The fallback is for rotating keys with a
+	     Developer ID signature, which this app doesn't have. -->
+	<key>SUSignedFeedFailureExpirationInterval</key>
+	<integer>0</integer>
 </dict>
 </plist>

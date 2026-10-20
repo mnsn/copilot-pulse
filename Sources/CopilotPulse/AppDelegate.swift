@@ -4,6 +4,7 @@ import AppKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settings = AppSettings()
     private let loginItem = LoginItem()
+    private let updater = Updater()
     private lazy var store = SessionStore(settings: settings)
     private var statusItem: StatusItemController?
     private var widget: DesktopWidgetController?
@@ -12,9 +13,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // A menu-bar app has no visible windows most of the time; don't let macOS reclaim it.
         ProcessInfo.processInfo.disableAutomaticTermination("Shows live Copilot session status")
         Log.app.info("Launched from \(Bundle.main.bundlePath, privacy: .public)")
-        statusItem = StatusItemController(store: store, settings: settings, loginItem: loginItem)
-        widget = DesktopWidgetController(store: store, settings: settings, loginItem: loginItem)
+        statusItem = StatusItemController(store: store, settings: settings, loginItem: loginItem, updater: updater)
+        widget = DesktopWidgetController(store: store, settings: settings, loginItem: loginItem, updater: updater)
         store.start()
+        // Only the app checks for updates, never the command-line modes or --render (see main.swift).
+        updater.start()
     }
 
     /// Launching the app again (Finder, Spotlight, `open`) shows the session list.

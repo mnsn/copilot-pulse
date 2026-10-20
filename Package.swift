@@ -7,6 +7,10 @@ let package = Package(
     products: [
         .executable(name: "CopilotPulse", targets: ["CopilotPulse"]),
     ],
+    dependencies: [
+        // In-app updates. Only the app target uses it; PulseCore and its tests don't.
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.10.0"),
+    ],
     targets: [
         .target(
             name: "PulseCore",
@@ -14,7 +18,12 @@ let package = Package(
         ),
         .executableTarget(
             name: "CopilotPulse",
-            dependencies: ["PulseCore"]
+            dependencies: [
+                "PulseCore",
+                .product(name: "Sparkle", package: "Sparkle"),
+            ],
+            // scripts/build-app.sh embeds Sparkle.framework in the app's Contents/Frameworks.
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-rpath", "-Xlinker", "@executable_path/../Frameworks"])]
         ),
         .testTarget(
             name: "PulseCoreTests",

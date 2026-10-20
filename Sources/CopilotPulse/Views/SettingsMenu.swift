@@ -5,6 +5,7 @@ import SwiftUI
 struct SettingsMenuContent: View {
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var loginItem: LoginItem
+    @EnvironmentObject private var updater: Updater
 
     var body: some View {
         Toggle("Show Desktop Widget", isOn: $settings.showWidget)
@@ -37,6 +38,16 @@ struct SettingsMenuContent: View {
         }
 
         Divider()
+
+        if updater.isAvailable {
+            Button("Check for Updates…") { updater.checkForUpdates() }
+                .disabled(!updater.canCheckForUpdates)
+            Toggle("Check for Updates Automatically", isOn: Binding(
+                get: { updater.automaticallyChecks },
+                set: { updater.setAutomaticallyChecks($0) }
+            ))
+            Divider()
+        }
 
         Button("Open GitHub Copilot") { CopilotApp.activate() }
         Button("Quit Copilot Pulse") { NSApp.terminate(nil) }

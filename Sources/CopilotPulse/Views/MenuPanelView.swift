@@ -6,6 +6,7 @@ struct MenuPanelView: View {
     @EnvironmentObject private var store: SessionStore
     @EnvironmentObject private var settings: AppSettings
     @EnvironmentObject private var loginItem: LoginItem
+    @EnvironmentObject private var updater: Updater
 
     @LocalState private var contentHeight: CGFloat = 0
     @LocalState private var showIdle = false
@@ -117,6 +118,16 @@ struct MenuPanelView: View {
             }
             .buttonStyle(.borderless)
             Spacer()
+            if let version = updater.pendingVersion {
+                Button {
+                    updater.checkForUpdates()
+                } label: {
+                    Label("Update Available", systemImage: "arrow.down.circle")
+                }
+                .buttonStyle(.borderless)
+                .foregroundStyle(.tint)
+                .help("Copilot Pulse \(version) is available")
+            }
             Menu {
                 SettingsMenuContent()
             } label: {
