@@ -4,3 +4,8 @@ updates:
     directory: /
     schedule:
       interval: monthly
+  # Sparkle, the in-app updater. Weekly, because its releases often fix security issues.
+  - package-ecosystem: swift
+    directory: /
+    schedule:
+      interval: weekly
