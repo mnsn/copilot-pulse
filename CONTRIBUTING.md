@@ -45,9 +45,9 @@ Sources/PulseCore/      the engine; UI-free, and fully tested
   FileEventStream       FSEvents wrapper
   FileWriteWatcher      kqueue watcher for the SQLite WAL file
   SessionEngine         wires it all together and publishes snapshots
-Sources/CopilotPulse/   the AppKit/SwiftUI app: menu bar, widget panel, settings, CLI
+Sources/CopilotPulse/   the AppKit/SwiftUI app: menu bar, widget panel, settings, updates, CLI
 Tests/PulseCoreTests/   Swift Testing suites, including live FSEvents/kqueue tests on temp files
-scripts/                app bundling, packaging and signing, the icon, and the demo data
+scripts/                app bundling, packaging and signing, update signing, the icon, and the demo data
 ```
 
 ## Debugging
@@ -84,7 +84,8 @@ log show --last 10m --info --predicate 'subsystem == "com.asaf.CopilotPulse"' --
   and never run SQL that writes (including `PRAGMA` settings and checkpoints). A read-only SQLite
   connection still takes brief shared locks and updates `data.db-shm`, as every reader does;
   that's expected.
-- **No network.** The app makes no network connections and collects no data. Keep it that way.
+- **No network, except updates.** The app's only network requests are Sparkle's update checks and
+  downloads, from this project's GitHub releases, and it collects no data. Keep it that way.
 - **Logic goes in `PulseCore`.** Keep it free of UI code and cover changes with tests in
   `Tests/PulseCoreTests`. The app target only displays what the engine publishes.
 - **Use made-up data.** Session names, prompts, logs and paths from your own Copilot sessions
@@ -101,25 +102,50 @@ log show --last 10m --info --predicate 'subsystem == "com.asaf.CopilotPulse"' --
 
 ## Releasing
 
-Releases are built by GitHub Actions, not on a maintainer's Mac.
+Releases are built and signed by GitHub Actions, not on a maintainer's Mac.
 
-1. Set the new version as `CFBundleShortVersionString` in `Resources/Info.plist`, and increase
-   `CFBundleVersion`.
-2. Add a section for it at the top of `CHANGELOG.md`, such as `## 0.2.0 - 2026-11-30`. It becomes
-   the release notes, so write it for users.
+1. Set the new version as `CFBundleShortVersionString` in `Resources/Info.plist`, as three numbers
+   such as `0.3.0`. The build sets `CFBundleVersion` to the same value. Sparkle compares it to
+   decide whether a release is newer, so a release fails unless its version is higher than every
+   earlier tag.
+2. Add a section for it at the top of `CHANGELOG.md`, such as `## 0.3.0 - 2026-11-30`. It becomes
+   the release notes, on GitHub and in the app's update window, so write it for users.
 3. Push to `main` and wait for CI. Its macOS 26 job uploads the packaged app as the
    `Copilot-Pulse` artifact, and the next jobs run that app on macOS 15 on Apple silicon and Intel.
+   CI also signs the package with a throwaway key, the way a release does
+   (`scripts/appcast-dry-run.sh`).
 4. Tag the commit and push the tag:
 
    ```sh
-   git tag v0.2.0
-   git push origin v0.2.0
+   git tag v0.3.0
+   git push origin v0.3.0
    ```
 
-The tag starts the [release workflow](.github/workflows/release.yml). It checks that the tag
-matches `Info.plist`, builds and tests the universal app on macOS 26, attests its build provenance
-and publishes the release with `Copilot-Pulse.zip`, its SHA-256 and the changelog section. The
-app is signed ad hoc and isn't notarized, which is why the README explains the Gatekeeper step.
+5. Approve the release: in the run under **Actions**, click **Review deployments**, select
+   `release` and click **Approve and deploy**.
+
+The tag starts the [release workflow](.github/workflows/release.yml). Its first job checks the
+version, then builds and tests the universal app on macOS 26. After your approval, the second job
+signs that zip and writes `appcast.xml` (`scripts/make-appcast.sh`), and checks the signatures with
+the public key (`scripts/verify-appcast.swift`). It then attests both files and publishes the
+release with `Copilot-Pulse.zip`, its SHA-256, `appcast.xml` and the changelog section. The app is
+signed ad hoc and isn't notarized, which is why the README explains the Gatekeeper step.
+
+### The update signing key
+
+Installed apps accept only updates signed with the private EdDSA key that matches `SUPublicEDKey`
+in `Resources/Info.plist`. Sparkle's `generate_keys` created it in the maintainer's login Keychain,
+under the account `copilot-pulse`. It's also in a password manager, as the backup, and in the
+`SPARKLE_PRIVATE_KEY` secret of the `release` environment (**Settings › Environments**). That
+environment has the maintainer as a required reviewer, and only `v*` tags can deploy to it.
+
+- Never put the private key anywhere else, in a file you keep, a command-line argument or a log.
+  Don't change `SUPublicEDKey` either, because installed apps would then reject every update.
+- If the key leaks, generate a new one, and publish one release whose app has the new public key
+  but is signed with the old key. `scripts/make-appcast.sh` refuses that mismatch, so sign that
+  release by hand with Sparkle's `sign_update`. Sign later releases with the new key.
+- If the key is lost, the installed apps can't be updated anymore: publish a release with a new key
+  and ask users to download it by hand once.
 
 ## License
 

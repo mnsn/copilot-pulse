@@ -35,7 +35,10 @@ configure.
   floating above them. Drag it by its header, and right-click it for settings.
 - **One click to a session**: click any session to open it in the Copilot app.
 - **Instant**: driven by file-system events, so there's no refresh delay.
-- **Private**: no network connections and no data collection.
+- **Updates itself**: once a day, if you allow it, it checks GitHub for a new version, and
+  installs it when you agree. Every update is signed and verified.
+- **Private**: no data collection. Its only network requests are for updates, from GitHub, and
+  nothing about your sessions leaves your Mac.
 
 ## What the states mean
 
@@ -63,15 +66,23 @@ Requires macOS 15 or later, on Apple silicon or Intel.
 1. Download [**Copilot-Pulse.zip**](https://github.com/mnsn/copilot-pulse/releases/latest/download/Copilot-Pulse.zip)
    from the [latest release](https://github.com/mnsn/copilot-pulse/releases/latest) and unzip it.
 2. Drag **Copilot Pulse** to your Applications folder before you open it. Opened from Downloads,
-   macOS runs it from a temporary location, and Launch at Login may not work.
+   macOS runs it from a temporary location, and Launch at Login and updates may not work.
 3. Open it. The app isn't notarized by Apple, so the first time, macOS won't open it because it
    can't verify it. Click **Done**, then go to **System Settings › Privacy & Security**, scroll
    down to the message that Copilot Pulse was blocked, click **Open Anyway** and confirm.
 4. Turn on **Launch at Login** in its settings. If macOS asks you to allow it, use
    **Allow in Login Items Settings…**.
 
-To update, replace the app with the new version and allow it again in the same way. To remove it,
-quit it and move it to the Trash.
+The second time you open it, Copilot Pulse asks whether to check for updates automatically. If you
+allow it, it checks once a day and offers each new version, which it installs and reopens without
+the Gatekeeper step. **Check for Updates…** in its settings checks right away. To remove it, quit it
+and move it to the Trash.
+
+Version 0.1.0 can't update itself. If you have it, download the latest version as above once, and
+replace the app.
+
+On a Mac that your organization manages, **Open Anyway** may be missing. You can build Copilot
+Pulse from source instead.
 
 ### Build from source
 
@@ -84,7 +95,9 @@ cd copilot-pulse
 make install     # builds "Copilot Pulse.app", copies it to ~/Applications and launches it
 ```
 
-Then turn on **Launch at Login** as above. To remove it, run `make uninstall`.
+Then turn on **Launch at Login** as above. To remove it, run `make uninstall`. A copy you build
+updates itself too, to the release builds, unless you turn off
+**Check for Updates Automatically** and build each new version yourself.
 
 ## Settings
 
@@ -97,12 +110,19 @@ Open the gear menu in the menu-bar panel, or right-click the widget.
 | Widget Size | Compact (2 rows), Medium (4), Large (8) |
 | Keep Finished Sessions For | 15 minutes, 1 hour, 4 hours, 1 day |
 | Launch at Login | on/off |
+| Check for Updates Automatically | on/off (once a day) |
 
 ## Privacy
 
-Copilot Pulse makes no network connections and collects no data. It reads the Copilot app's
-files under `~/.copilot` read-only and never changes any of the app's data. All it stores is its
-own settings and which sessions you've cleared, in its preferences on your Mac.
+Copilot Pulse collects no data. It reads the Copilot app's files under `~/.copilot` read-only and
+never changes any of the app's data. All it stores is its own settings and which sessions you've
+cleared, in its preferences on your Mac.
+
+Its only network requests are for updates, to this project's releases on GitHub. If you allow
+automatic checks, it downloads a small file that describes the latest release once a day, and the
+new version itself when you install it. GitHub sees your IP address and the versions of Copilot
+Pulse and of [Sparkle](https://sparkle-project.org), the updater it uses. Nothing about your
+sessions or your Mac is sent, and it accepts no cookies.
 
 ## FAQ
 
@@ -133,6 +153,14 @@ have. So macOS asks you to allow the app the first time you open it, as describe
 [GitHub Actions](.github/workflows/release.yml), with an attestation you can
 [verify](SECURITY.md#verifying-a-download). You can also build it yourself.
 
+### How do I know an update is genuine?
+
+Each update, and the file that announces it, is signed with the project's private key. Copilot
+Pulse installs an update only if both signatures match the public key built into the app. Only the
+maintainer holds the private key, and so does the release workflow, which can use it only after
+the maintainer approves the release. [SECURITY.md](SECURITY.md#how-updates-are-verified) has the
+details.
+
 ### How do I troubleshoot it?
 
 The app binary has debugging options, and logs diagnostics to the system log:
@@ -142,6 +170,7 @@ APP="/Applications/Copilot Pulse.app/Contents/MacOS/CopilotPulse"   # ~/Applicat
 "$APP" --dump     # every session and its status
 "$APP" --watch    # status changes as they happen
 log show --last 10m --info --predicate 'subsystem == "com.asaf.CopilotPulse"' --style compact
+log show --last 1d --predicate 'subsystem == "org.sparkle-project.Sparkle"' --style compact   # updates
 ```
 
 Their output includes your session names and prompts, so remove anything private before you
@@ -157,5 +186,9 @@ described in [SECURITY.md](SECURITY.md).
 
 Copyright © 2026 Asaf Manassen. Copilot Pulse is free software, licensed under the
 [GNU General Public License v3.0 or later](LICENSE).
+
+The app includes [Sparkle](https://sparkle-project.org), which is licensed under the MIT license.
+Sparkle's copyright and license notices, which also cover the code it bundles, are in
+[Resources/Sparkle-LICENSE.txt](Resources/Sparkle-LICENSE.txt) and inside the app.
 
 GitHub and GitHub Copilot are trademarks of GitHub, Inc.
