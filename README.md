@@ -11,6 +11,12 @@ It updates within a fraction of a second of a state change and doesn't depend on
 reads the Copilot app's local files read-only, so there are no hooks to install and nothing to
 configure.
 
+> [!IMPORTANT]
+> Copilot Pulse is now part of [Brief Bar](https://github.com/mnsn/brief-bar), a sibling app
+> with many more features. Brief Bar is the home for ongoing development and future updates.
+> If you only want the Pulse Bar, enable just **Pulse Bar** in Brief Bar; it works the same as
+> Copilot Pulse.
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/images/menubar-dark.png">
